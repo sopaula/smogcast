@@ -1,0 +1,20 @@
+{
+  "Lista stacji pomiarowych": [
+    {
+      "Identyfikator stacji": 11,
+      "Nazwa stacji": "Czerniawa",
+      "WGS84 φ N": "50.912475",
+      "WGS84 λ E": "15.312190",
+      "Nazwa miasta": "Czerniawa",
+      "Województwo": "DOLNOŚLĄSKIE"
+    },
+    {
+      "Identyfikator stacji": 12,
+      "Nazwa stacji": "Katowice",
+      "WGS84 φ N": "50.259",
+      "WGS84 λ E": "19.021",
+      "Nazwa miasta": "Katowice",
+      "Województwo": "ŚLĄSKIE"
+    }
+  ]
+}
