@@ -97,8 +97,7 @@ def get_weather_for_location(
 
 
 # Pobiera pogodę historyczną dla wszystkich wybranych stacji
-# Łączy pomiary w jedną listę i zapisuje stacje,
-# których nie udało się pobrać
+# Łączy pomiary w jedną listę i zapisuje stacje, których nie udało się pobrać
 def get_weather_for_stations(
     station_records,
     start_date,

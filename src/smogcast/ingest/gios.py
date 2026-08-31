@@ -11,7 +11,7 @@ SENSOR_ARCHIVAL_URL = (
 )
 
 
-# Wyciąga listę stacji z odpowiedzi JSON zwróconej przez API
+# Wyciąga listę stacji z odpowiedzi JSON zwróconej przez APII
 def parse_stations(data):
     return data["Lista stacji pomiarowych"]
 
@@ -141,8 +141,7 @@ def get_archival_data_by_sensor(
     return all_measurements
 
 
-# Pobiera cały okres dla jednego sensora,
-# dzieląc go na mniejsze zakresy dat
+# Pobiera cały okres dla jednego sensora, dzieląc go na mniejsze zakresy dat
 def get_sensor_data_for_period(
     sensor_id,
     date_from,
