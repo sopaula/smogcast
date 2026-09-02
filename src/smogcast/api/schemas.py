@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -12,6 +14,12 @@ class StationResponse(BaseModel):
     latitude: float
     longitude: float
 
-    model_config = {
-        "from_attributes": True,
-    }
+    model_config = {"from_attributes": True}
+
+
+# Pojedynczy pomiar zwracany przez API.
+class MeasurementResponse(BaseModel):
+    sensor_id: int
+    param: str
+    timestamp: datetime
+    value: float | None
