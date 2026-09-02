@@ -20,20 +20,38 @@ class Base(DeclarativeBase):
 class Station(Base):
     __tablename__ = "stations"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(
+        primary_key=True,
+    )
 
-    name: Mapped[str] = mapped_column(String, nullable=False)
-    city: Mapped[str] = mapped_column(String, nullable=False)
+    name: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+    )
 
-    latitude: Mapped[float] = mapped_column(Float, nullable=False)
-    longitude: Mapped[float] = mapped_column(Float, nullable=False)
+    city: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+    )
+
+    latitude: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+    )
+
+    longitude: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+    )
 
 
 # Sensory znajdujące się na stacjach.
 class Sensor(Base):
     __tablename__ = "sensors"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(
+        primary_key=True,
+    )
 
     station_id: Mapped[int] = mapped_column(
         ForeignKey("stations.id"),
@@ -82,6 +100,14 @@ class Measurement(Base):
 # Dane pogodowe dla lokalizacji stacji.
 class Weather(Base):
     __tablename__ = "weather"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "station_id",
+            "timestamp",
+            name="uq_weather_station_timestamp",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(
         primary_key=True,
