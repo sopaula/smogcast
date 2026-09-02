@@ -6,12 +6,14 @@ import httpx
 
 STATIONS_URL = "https://api.gios.gov.pl/pjp-api/v1/rest/station/findAll"
 
+SENSORS_URL = "https://api.gios.gov.pl/pjp-api/v1/rest/station/sensors"
+
 SENSOR_ARCHIVAL_URL = (
     "https://api.gios.gov.pl/pjp-api/v1/rest/archivalData/getDataBySensor"
 )
 
 
-# Wyciąga listę stacji z odpowiedzi JSON zwróconej przez APII
+# Wyciąga listę stacji z odpowiedzi JSON zwróconej przez API
 def parse_stations(data):
     return data["Lista stacji pomiarowych"]
 
@@ -42,7 +44,20 @@ def get_all_stations():
     return stations
 
 
-# Dane archiwalne
+# Pobiera sensory dla jednej stacji GIOŚ
+def get_station_sensors(station_id):
+    response = httpx.get(
+        f"{SENSORS_URL}/{station_id}",
+        timeout=10.0,
+    )
+    response.raise_for_status()
+
+    data = response.json()
+
+    return data["Lista stanowisk pomiarowych dla podanej stacji"]
+
+
+# DANE ARCHIWALNE
 
 
 # Dzieli okres na mniejsze, niepokrywające się zakresy dat
