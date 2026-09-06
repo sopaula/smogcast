@@ -8,8 +8,8 @@ from smogcast.storage.upsert import upsert_measurements, upsert_weather
 
 CET = timezone(timedelta(hours=1))
 
-GIOS_PATH = "data/raw/gios_pm_measurements_1y.parquet"
-WEATHER_PATH = "data/raw/open_meteo_weather_1y.parquet"
+GIOS_PATH = "data/raw/gios_pm_measurements_3y.parquet"
+WEATHER_PATH = "data/raw/open_meteo_weather_3y.parquet"
 
 
 # Wczytuje pomiary GIOŚ z pliku parquet i przygotowuje je do zapisu w bazie.
