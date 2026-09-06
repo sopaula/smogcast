@@ -4,7 +4,6 @@ from smogcast.processing.daily import calculate_daily_measurements
 
 
 # Sprawdza poprawność średniej, maksimum i coverage
-# na małym ręcznie policzonym przykładzie.
 def test_calculate_daily_measurements():
     df = pd.DataFrame(
         [
