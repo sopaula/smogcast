@@ -1,195 +1,229 @@
 from datetime import datetime
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
-from sqlalchemy.orm import Session
 
 from smogcast.api.schemas import (
+    ForecastResponse,
     HealthResponse,
     MeasurementResponse,
     StationResponse,
-    ForecastResponse,
 )
-
+from smogcast.model.predict import (
+    predict_station_tomorrow,
+)
 from smogcast.storage.db import SessionLocal
-from smogcast.storage.models import Measurement, Sensor, Station
-
-from smogcast.model.predict import predict_tomorrow
+from smogcast.storage.models import (
+    Measurement,
+    Sensor,
+    Station,
+)
 
 
 router = APIRouter()
 
 
-# Otwiera połączenie z bazą danych na czas obsługi zapytania.
-def get_db():
-    db = SessionLocal()
+# Zamienia parametr używany w API
+# na kod zapisany w bazie
+#
+# W API używamy PM25,
+# a w bazie zapisujemy PM2.5
+def map_param(
+    param,
+):
+    if param == "PM25":
+        return "PM2.5"
 
-    try:
-        yield db
-    finally:
-        db.close()
+    return param
 
 
-# Sprawdza, czy API działa.
+# Sprawdza działanie API
 @router.get(
     "/health",
     response_model=HealthResponse,
 )
 def health():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+    }
 
 
-# Zwraca listę wszystkich stacji zapisanych w bazie.
+# Zwraca listę wszystkich stacji
 @router.get(
     "/stations",
     response_model=list[StationResponse],
 )
-def get_stations(
-    db: Session = Depends(get_db),
-):
-    stations = db.query(Station).all()
+def get_stations():
+    with SessionLocal() as db:
+        stmt = select(Station).order_by(
+            Station.city,
+            Station.name,
+        )
 
-    return stations
+        stations = list(db.scalars(stmt))
+
+        return stations
 
 
-# Zwraca pomiary wybranego parametru dla stacji
-# w podanym zakresie czasu.
+# Zwraca pomiary dla wybranej stacji
+# i parametru
 @router.get(
     "/stations/{station_id}/measurements",
     response_model=list[MeasurementResponse],
 )
-def get_station_measurements(
+def get_measurements(
     station_id: int,
-    param: Literal["PM10", "PM25"],
-    date_from: datetime = Query(alias="from"),
-    date_to: datetime = Query(alias="to"),
-    db: Session = Depends(get_db),
+    param: Literal[
+        "PM10",
+        "PM25",
+    ],
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
 ):
-    station = db.get(
-        Station,
-        station_id,
-    )
+    param_code = map_param(param)
 
-    if station is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Station not found",
+    with SessionLocal() as db:
+        station = db.get(
+            Station,
+            station_id,
         )
 
-    param_code = "PM2.5" if param == "PM25" else param
+        if station is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Station not found",
+            )
 
-    stmt = (
-        select(
-            Measurement.sensor_id,
-            Sensor.param_code,
-            Measurement.timestamp,
-            Measurement.value,
+        stmt = (
+            select(
+                Measurement,
+                Sensor,
+            )
+            .join(
+                Sensor,
+                Measurement.sensor_id == Sensor.id,
+            )
+            .where(
+                Sensor.station_id == station_id,
+                Sensor.param_code == param_code,
+            )
         )
-        .join(
-            Sensor,
-            Measurement.sensor_id == Sensor.id,
-        )
-        .where(
-            Sensor.station_id == station_id,
-            Sensor.param_code == param_code,
-            Measurement.timestamp >= date_from,
-            Measurement.timestamp <= date_to,
-        )
-        .order_by(
-            Measurement.timestamp,
-        )
-    )
 
-    rows = db.execute(stmt).all()
+        if date_from is not None:
+            stmt = stmt.where(Measurement.timestamp >= date_from)
 
-    return [
-        {
-            "sensor_id": row.sensor_id,
-            "param": param,
-            "timestamp": row.timestamp,
-            "value": row.value,
-        }
-        for row in rows
-    ]
+        if date_to is not None:
+            stmt = stmt.where(Measurement.timestamp <= date_to)
+
+        stmt = stmt.order_by(Measurement.timestamp)
+
+        rows = db.execute(stmt).all()
+
+        return [
+            {
+                "sensor_id": sensor.id,
+                "param": param,
+                "timestamp": (measurement.timestamp),
+                "value": measurement.value,
+            }
+            for measurement, sensor in rows
+        ]
 
 
-# Zwraca najnowszy dostępny pomiar dla wybranej stacji.
+# Zwraca najnowsze dostępne
+# pomiary PM10 i PM2.5
+# dla wybranej stacji
 @router.get(
     "/stations/{station_id}/latest",
-    response_model=MeasurementResponse,
+    response_model=list[MeasurementResponse],
 )
-def get_latest_measurement(
+def get_latest_measurements(
     station_id: int,
-    db: Session = Depends(get_db),
 ):
-    station = db.get(
-        Station,
-        station_id,
-    )
+    results = []
 
-    if station is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Station not found",
+    with SessionLocal() as db:
+        station = db.get(
+            Station,
+            station_id,
         )
 
-    stmt = (
-        select(
-            Measurement.sensor_id,
-            Sensor.param_code,
-            Measurement.timestamp,
-            Measurement.value,
-        )
-        .join(
-            Sensor,
-            Measurement.sensor_id == Sensor.id,
-        )
-        .where(
-            Sensor.station_id == station_id,
-        )
-        .order_by(
-            Measurement.timestamp.desc(),
-        )
-        .limit(1)
-    )
+        if station is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Station not found",
+            )
 
-    row = db.execute(stmt).first()
+        for (
+            api_param,
+            db_param,
+        ) in [
+            (
+                "PM10",
+                "PM10",
+            ),
+            (
+                "PM25",
+                "PM2.5",
+            ),
+        ]:
+            stmt = (
+                select(
+                    Measurement,
+                    Sensor,
+                )
+                .join(
+                    Sensor,
+                    Measurement.sensor_id == Sensor.id,
+                )
+                .where(
+                    Sensor.station_id == station_id,
+                    Sensor.param_code == db_param,
+                )
+                .order_by(Measurement.timestamp.desc())
+                .limit(1)
+            )
 
-    if row is None:
-        raise HTTPException(
-            status_code=404,
-            detail="No measurements found for this station",
-        )
+            row = db.execute(stmt).first()
 
-    param = "PM25" if row.param_code == "PM2.5" else row.param_code
+            if row is None:
+                continue
 
-    return {
-        "sensor_id": row.sensor_id,
-        "param": param,
-        "timestamp": row.timestamp,
-        "value": row.value,
-    }
+            measurement, sensor = row
+
+            results.append(
+                {
+                    "sensor_id": sensor.id,
+                    "param": api_param,
+                    "timestamp": (measurement.timestamp),
+                    "value": measurement.value,
+                }
+            )
+
+    return results
 
 
-# Zwraca prognozę PM na jutro dla wybranej stacji i parametru
-# Odpowiedź zawiera również próg oraz flagę alarmu
+# Zwraca prognozę PM10 i PM2.5
+# na kolejny dzień dla jednej stacji
 @router.get(
     "/stations/{station_id}/forecast",
     response_model=ForecastResponse,
 )
 def get_forecast(
     station_id: int,
-    param: Literal["PM10", "PM25"],
 ):
     try:
-        return predict_tomorrow(
-            station_id=station_id,
-            param=param,
-        )
+        return predict_station_tomorrow(station_id)
 
     except ValueError as error:
         raise HTTPException(
             status_code=404,
+            detail=str(error),
+        ) from error
+
+    except RuntimeError as error:
+        raise HTTPException(
+            status_code=503,
             detail=str(error),
         ) from error
