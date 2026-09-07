@@ -9,9 +9,13 @@ from smogcast.api.schemas import (
     HealthResponse,
     MeasurementResponse,
     StationResponse,
+    ForecastResponse,
 )
+
 from smogcast.storage.db import SessionLocal
 from smogcast.storage.models import Measurement, Sensor, Station
+
+from smogcast.model.predict import predict_tomorrow
 
 
 router = APIRouter()
@@ -166,3 +170,26 @@ def get_latest_measurement(
         "timestamp": row.timestamp,
         "value": row.value,
     }
+
+
+# Zwraca prognozę PM na jutro dla wybranej stacji i parametru
+# Odpowiedź zawiera również próg oraz flagę alarmu
+@router.get(
+    "/stations/{station_id}/forecast",
+    response_model=ForecastResponse,
+)
+def get_forecast(
+    station_id: int,
+    param: Literal["PM10", "PM25"],
+):
+    try:
+        return predict_tomorrow(
+            station_id=station_id,
+            param=param,
+        )
+
+    except ValueError as error:
+        raise HTTPException(
+            status_code=404,
+            detail=str(error),
+        ) from error

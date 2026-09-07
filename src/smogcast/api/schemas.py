@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 
 from pydantic import BaseModel
 
@@ -23,3 +23,13 @@ class MeasurementResponse(BaseModel):
     param: str
     timestamp: datetime
     value: float | None
+
+
+# Określa strukturę odpowiedzi endpointu prognozy
+class ForecastResponse(BaseModel):
+    station_id: int
+    param: str
+    forecast_date: date
+    forecast_value: float
+    threshold: float
+    alarm: bool

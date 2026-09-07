@@ -1,9 +1,11 @@
 import time
+from datetime import date, timedelta
 
 import httpx
 
 
 OPEN_METEO_ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
+OPEN_METEO_FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 
 
 # Zamienia odpowiedź Open-Meteo na listę godzinowych pomiarów pogody
@@ -97,7 +99,8 @@ def get_weather_for_location(
 
 
 # Pobiera pogodę historyczną dla wszystkich wybranych stacji
-# Łączy pomiary w jedną listę i zapisuje stacje, których nie udało się pobrać
+# Łączy pomiary w jedną listę i zapisuje stacje,
+# których nie udało się pobrać
 def get_weather_for_stations(
     station_records,
     start_date,
@@ -138,3 +141,67 @@ def get_weather_for_stations(
         time.sleep(0.5)
 
     return all_weather, failed_stations
+
+
+# Pobiera prognozę pogody na jutro dla jednej lokalizacji
+# Dane są pobierane godzinowo z endpointu forecast Open-Meteo
+# Następnie liczone są średnie dobowe temperatury,
+# wilgotności i prędkości wiatru
+def get_tomorrow_weather(
+    latitude,
+    longitude,
+    max_retries=3,
+):
+    tomorrow = date.today() + timedelta(days=1)
+
+    for attempt in range(max_retries):
+        try:
+            response = httpx.get(
+                OPEN_METEO_FORECAST_URL,
+                params={
+                    "latitude": latitude,
+                    "longitude": longitude,
+                    "start_date": tomorrow.isoformat(),
+                    "end_date": tomorrow.isoformat(),
+                    "hourly": ("temperature_2m,relative_humidity_2m,wind_speed_10m"),
+                    "timezone": "UTC",
+                },
+                timeout=30.0,
+            )
+
+            if response.status_code == 429:
+                print("Za dużo zapytań do Open-Meteo. Czekam 10 sekund...")
+                time.sleep(10)
+                continue
+
+            response.raise_for_status()
+
+            data = response.json()
+            hourly = data["hourly"]
+
+            temperatures = hourly["temperature_2m"]
+            humidities = hourly["relative_humidity_2m"]
+            wind_speeds = hourly["wind_speed_10m"]
+
+            average_temperature = sum(temperatures) / len(temperatures)
+
+            average_humidity = sum(humidities) / len(humidities)
+
+            average_wind_speed = sum(wind_speeds) / len(wind_speeds)
+
+            return {
+                "date": tomorrow,
+                "temp_c": average_temperature,
+                "humidity": average_humidity,
+                "wind_ms": average_wind_speed / 3.6,
+            }
+
+        except (httpx.ReadTimeout, httpx.ConnectTimeout):
+            print(
+                "Timeout podczas pobierania prognozy pogody. "
+                f"Próba {attempt + 1}/{max_retries}"
+            )
+
+            time.sleep(5)
+
+    return None
