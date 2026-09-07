@@ -24,3 +24,6 @@ data/
 
 # Database files
 *.db
+
+# Trained model artifacts
+models/*.joblib
