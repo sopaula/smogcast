@@ -149,6 +149,7 @@ def predict_pollutant(
     alarm = prediction > threshold
 
     return {
+        "sensor_id": freshness["sensor_id"],
         "forecast_value": round(
             prediction,
             2,

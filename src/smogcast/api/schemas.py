@@ -34,10 +34,10 @@ class MeasurementResponse(BaseModel):
 # - flagę alarmu
 # - informację o świeżości danych
 class PollutantForecastResponse(BaseModel):
+    sensor_id: int
     forecast_value: float
     threshold: float
     alarm: bool
-
     data_date: date
     data_age_days: int
     data_status: str
