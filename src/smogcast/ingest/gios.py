@@ -15,13 +15,43 @@ SENSOR_ARCHIVAL_URL = (
 CURRENT_DATA_URL = "https://api.gios.gov.pl/pjp-api/v1/rest/data/getData"
 
 
+# Jak długo metadane GIOŚ
+# mogą być przechowywane w cache
+METADATA_CACHE_TTL_SECONDS = 6 * 60 * 60
+
+
+# Cache dla listy wszystkich stacji
+_stations_cache = {
+    "data": None,
+    "expires_at": 0.0,
+}
+
+
+# Cache dla list sensorów
+# osobno dla każdej stacji
+_sensors_cache = {}
+
+
 # Wyciąga listę stacji z odpowiedzi JSON zwróconej przez API
 def parse_stations(data):
     return data["Lista stacji pomiarowych"]
 
 
-# Pobiera wszystkie stacje pomiarowe GIOŚ ze wszystkich stron API
+# Pobiera wszystkie stacje pomiarowe GIOŚ
+# ze wszystkich stron API
+#
+# Lista stacji jest przechowywana
+# w cache przez określony czas,
+# ponieważ metadane zmieniają się rzadko
 def get_all_stations():
+    now = time.monotonic()
+
+    # Jeśli cache istnieje
+    # i jeszcze nie wygasł,
+    # zwracamy zapisane dane
+    if _stations_cache["data"] is not None and now < _stations_cache["expires_at"]:
+        return _stations_cache["data"]
+
     stations = []
 
     response = httpx.get(
@@ -50,13 +80,39 @@ def get_all_stations():
 
         page_data = response.json()
 
-        stations.extend(parse_stations(page_data))
+        stations.extend(
+            parse_stations(
+                page_data,
+            )
+        )
+
+    # Zapisuje pobraną listę
+    # w cache na kolejne 6 godzin
+    _stations_cache["data"] = stations
+    _stations_cache["expires_at"] = time.monotonic() + METADATA_CACHE_TTL_SECONDS
 
     return stations
 
 
 # Pobiera sensory dla jednej stacji GIOŚ
-def get_station_sensors(station_id):
+#
+# Lista sensorów jest przechowywana
+# w cache osobno dla każdej stacji
+def get_station_sensors(
+    station_id,
+):
+    now = time.monotonic()
+
+    cached = _sensors_cache.get(
+        station_id,
+    )
+
+    # Jeśli sensory dla tej stacji
+    # są już w cache i cache nie wygasł,
+    # zwracamy zapisane dane
+    if cached is not None and now < cached["expires_at"]:
+        return cached["data"]
+
     response = httpx.get(
         f"{SENSORS_URL}/{station_id}",
         timeout=10.0,
@@ -66,7 +122,16 @@ def get_station_sensors(station_id):
 
     data = response.json()
 
-    return data["Lista stanowisk pomiarowych dla podanej stacji"]
+    sensors = data["Lista stanowisk pomiarowych dla podanej stacji"]
+
+    # Zapisuje listę sensorów
+    # w cache na kolejne 6 godzin
+    _sensors_cache[station_id] = {
+        "data": sensors,
+        "expires_at": (time.monotonic() + METADATA_CACHE_TTL_SECONDS),
+    }
+
+    return sensors
 
 
 # DANE ARCHIWALNE
