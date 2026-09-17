@@ -15,49 +15,47 @@ SENSOR_ARCHIVAL_URL = (
 CURRENT_DATA_URL = "https://api.gios.gov.pl/pjp-api/v1/rest/data/getData"
 
 
-# Jak długo metadane GIOŚ
-# mogą być przechowywane w cache
 METADATA_CACHE_TTL_SECONDS = 6 * 60 * 60
 
 
-# Cache dla listy wszystkich stacji
+# Wspólny klient HTTP.
+client = httpx.Client()
+
+
 _stations_cache = {
     "data": None,
     "expires_at": 0.0,
 }
 
 
-# Cache dla list sensorów
-# osobno dla każdej stacji
 _sensors_cache = {}
 
 
-# Wyciąga listę stacji z odpowiedzi JSON zwróconej przez API
-def parse_stations(data):
+# Wyciąga listę stacji z odpowiedzi API.
+def parse_stations(
+    data,
+):
     return data["Lista stacji pomiarowych"]
 
 
-# Pobiera wszystkie stacje pomiarowe GIOŚ
-# ze wszystkich stron API
-#
-# Lista stacji jest przechowywana
-# w cache przez określony czas,
-# ponieważ metadane zmieniają się rzadko
+# Pobiera wszystkie stacje GIOŚ.
 def get_all_stations():
     now = time.monotonic()
 
-    # Jeśli cache istnieje
-    # i jeszcze nie wygasł,
-    # zwracamy zapisane dane
+    # Korzysta z cache, jeśli jest aktualny.
     if _stations_cache["data"] is not None and now < _stations_cache["expires_at"]:
         return _stations_cache["data"]
 
     stations = []
 
-    response = httpx.get(
+    response = client.get(
         STATIONS_URL,
+        params={
+            "size": 100,
+        },
         timeout=10.0,
     )
+
     response.raise_for_status()
 
     data = response.json()
@@ -66,12 +64,16 @@ def get_all_stations():
 
     total_pages = data["totalPages"]
 
-    for page in range(1, total_pages):
-        response = httpx.get(
+    # Pobiera kolejne strony.
+    for page in range(
+        1,
+        total_pages,
+    ):
+        response = client.get(
             STATIONS_URL,
             params={
                 "page": page,
-                "size": 20,
+                "size": 100,
             },
             timeout=10.0,
         )
@@ -80,40 +82,28 @@ def get_all_stations():
 
         page_data = response.json()
 
-        stations.extend(
-            parse_stations(
-                page_data,
-            )
-        )
+        stations.extend(parse_stations(page_data))
 
-    # Zapisuje pobraną listę
-    # w cache na kolejne 6 godzin
+    # Zapisuje wynik w cache.
     _stations_cache["data"] = stations
     _stations_cache["expires_at"] = time.monotonic() + METADATA_CACHE_TTL_SECONDS
 
     return stations
 
 
-# Pobiera sensory dla jednej stacji GIOŚ
-#
-# Lista sensorów jest przechowywana
-# w cache osobno dla każdej stacji
+# Pobiera sensory dla jednej stacji.
 def get_station_sensors(
     station_id,
 ):
     now = time.monotonic()
 
-    cached = _sensors_cache.get(
-        station_id,
-    )
+    cached = _sensors_cache.get(station_id)
 
-    # Jeśli sensory dla tej stacji
-    # są już w cache i cache nie wygasł,
-    # zwracamy zapisane dane
+    # Korzysta z cache, jeśli jest aktualny.
     if cached is not None and now < cached["expires_at"]:
         return cached["data"]
 
-    response = httpx.get(
+    response = client.get(
         f"{SENSORS_URL}/{station_id}",
         timeout=10.0,
     )
@@ -124,8 +114,7 @@ def get_station_sensors(
 
     sensors = data["Lista stanowisk pomiarowych dla podanej stacji"]
 
-    # Zapisuje listę sensorów
-    # w cache na kolejne 6 godzin
+    # Zapisuje sensory w cache.
     _sensors_cache[station_id] = {
         "data": sensors,
         "expires_at": (time.monotonic() + METADATA_CACHE_TTL_SECONDS),
@@ -137,7 +126,7 @@ def get_station_sensors(
 # DANE ARCHIWALNE
 
 
-# Dzieli okres na mniejsze, niepokrywające się zakresy dat
+# Dzieli okres na mniejsze zakresy.
 def generate_date_ranges(
     date_from,
     date_to,
@@ -173,14 +162,14 @@ def generate_date_ranges(
     return ranges
 
 
-# Wyciąga listę archiwalnych pomiarów
-# z odpowiedzi JSON API
-def parse_archival_measurements(data):
+# Wyciąga archiwalne pomiary z odpowiedzi API.
+def parse_archival_measurements(
+    data,
+):
     return data["Lista archiwalnych wyników pomiarów"]
 
 
-# Pobiera jeden zakres dat dla jednego sensora
-# Obsługuje wszystkie strony odpowiedzi, timeouty i kod 429
+# Pobiera jeden zakres dla sensora.
 def get_archival_data_by_sensor(
     sensor_id,
     date_from,
@@ -193,7 +182,7 @@ def get_archival_data_by_sensor(
     while True:
         for attempt in range(max_retries):
             try:
-                response = httpx.get(
+                response = client.get(
                     f"{SENSOR_ARCHIVAL_URL}/{sensor_id}",
                     params={
                         "dateFrom": date_from,
@@ -208,6 +197,7 @@ def get_archival_data_by_sensor(
                     print("Za dużo zapytań. Czekam 10 sekund...")
 
                     time.sleep(10)
+
                     continue
 
                 response.raise_for_status()
@@ -238,25 +228,19 @@ def get_archival_data_by_sensor(
                 time.sleep(5)
 
         else:
-            # Wszystkie próby dla tej strony się nie udały
             return None
 
-        # Jeśli właśnie pobraliśmy ostatnią stronę,
-        # kończymy
         if page >= total_pages - 1:
             break
 
         page += 1
 
-        # Krótka przerwa przed pobraniem
-        # kolejnej strony
         time.sleep(0.3)
 
     return all_measurements
 
 
-# Pobiera cały okres dla jednego sensora,
-# dzieląc go na mniejsze zakresy dat
+# Pobiera cały okres dla sensora.
 def get_sensor_data_for_period(
     sensor_id,
     date_from,
@@ -294,7 +278,6 @@ def get_sensor_data_for_period(
 
         all_measurements.extend(measurements)
 
-        # Krótka przerwa przed kolejnym zakresem
         time.sleep(0.5)
 
     return (
@@ -303,8 +286,7 @@ def get_sensor_data_for_period(
     )
 
 
-# Pobiera dane dla wielu sensorów i dopisuje
-# informacje o stacji oraz parametrze PM10/PM2.5
+# Pobiera dane dla wielu sensorów.
 def get_data_for_sensor_records(
     sensor_records,
     date_from,
@@ -338,7 +320,10 @@ def get_data_for_sensor_records(
             f"sensor {sensor_id}"
         )
 
-        measurements, sensor_failed_ranges = get_sensor_data_for_period(
+        (
+            measurements,
+            sensor_failed_ranges,
+        ) = get_sensor_data_for_period(
             sensor_id,
             date_from,
             date_to,
@@ -362,7 +347,6 @@ def get_data_for_sensor_records(
 
         failed_ranges.extend(sensor_failed_ranges)
 
-        # Krótka przerwa przed następnym sensorem
         time.sleep(0.5)
 
     return (
@@ -374,18 +358,17 @@ def get_data_for_sensor_records(
 # DANE BIEŻĄCE
 
 
-# Wyciąga listę bieżących pomiarów
-# z odpowiedzi JSON GIOŚ
-def parse_current_measurements(data):
+# Wyciąga bieżące pomiary z odpowiedzi API.
+def parse_current_measurements(
+    data,
+):
     return data.get(
         "Lista danych pomiarowych",
         [],
     )
 
 
-# Pobiera najnowsze pomiary dla jednego sensora
-# Korzysta z bieżącego endpointu GIOŚ,
-# a nie z endpointu archiwalnego
+# Pobiera bieżące dane dla jednego sensora.
 def get_current_sensor_data(
     sensor_id,
     timeout=30.0,
@@ -393,8 +376,11 @@ def get_current_sensor_data(
 ):
     for attempt in range(max_retries):
         try:
-            response = httpx.get(
+            response = client.get(
                 f"{CURRENT_DATA_URL}/{sensor_id}",
+                params={
+                    "size": 100,
+                },
                 timeout=timeout,
             )
 
@@ -402,6 +388,7 @@ def get_current_sensor_data(
                 print("Za dużo zapytań do GIOŚ. Czekam 10 sekund...")
 
                 time.sleep(10)
+
                 continue
 
             response.raise_for_status()
