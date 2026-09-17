@@ -1,49 +1,47 @@
 # Smogcast MVP
 
-## Cel MVP
+## MVP Goal
 
-Celem Smogcast MVP jest dostarczenie użytkownikowi prostej prognozy
-stężenia PM10 i PM2.5 na następny dzień dla wybranej stacji,
-na podstawie historycznych danych o jakości powietrza i warunkach pogodowych.
+The goal of the Smogcast MVP is to provide users with a simple next-day forecast of PM10 and PM2.5 concentrations for a selected monitoring station, based on historical air quality data and weather conditions.
 
-## User stories
+## User Stories
 
-1. Jako mieszkaniec chcę sprawdzić prognozę PM10 i PM2.5 na następny dzień dla wybranej stacji, aby lepiej zaplanować aktywność na zewnątrz.
+1. As a resident, I want to check the next-day PM10 and PM2.5 forecast for a selected station so that I can better plan outdoor activities.
 
-2. Jako mieszkaniec chcę zobaczyć przewidywany poziom zanieczyszczenia w czytelnej formie, aby szybko ocenić jakość powietrza.
+2. As a resident, I want to see the predicted pollution level in a clear and easy-to-understand form so that I can quickly assess air quality.
 
-3. Jako użytkownik chcę wybrać jedną z dostępnych stacji pomiarowych, aby otrzymać prognozę dla interesującej mnie lokalizacji.
+3. As a user, I want to select one of the available monitoring stations so that I can receive a forecast for the location I am interested in.
 
-4. Jako użytkownik chcę zobaczyć podstawowe informacje pogodowe powiązane z prognozą, aby lepiej zrozumieć warunki wpływające na jakość powietrza.
+4. As a user, I want to see basic weather information related to the forecast so that I can better understand the conditions affecting air quality.
 
-5. Jako użytkownik chcę zobaczyć ostatnie dostępne pomiary PM oraz prognozę na kolejny dzień, aby porównać aktualną sytuację z przewidywaną.
+5. As a user, I want to see the latest available PM measurements together with the next-day forecast so that I can compare the current situation with the predicted one.
 
-## Zakres MVP
+## MVP Scope
 
-### W środku
+### Included
 
-- prognoza PM10 i PM2.5 na następny dzień
-- wybór jednej z obsługiwanych stacji pomiarowych
-- wykorzystanie historycznych danych GIOŚ
-- wykorzystanie danych pogodowych Open-Meteo
-- model predykcyjny oparty na danych historycznych
-- prezentacja ostatnich pomiarów i prognozy
-- podstawowy backend API
-- prosty interfejs użytkownika lub dashboard
-- obsługa wybranych stacji z dobrym pokryciem danych
-- podstawowa informacja o jakości prognozy modelu
+- next-day PM10 and PM2.5 forecast
+- selection of one of the supported monitoring stations
+- use of historical GIOŚ data
+- use of Open-Meteo weather data
+- predictive model based on historical data
+- presentation of the latest measurements and forecast
+- basic backend API
+- simple user interface or dashboard
+- support for selected stations with good data coverage
+- basic information about model forecast quality
 
-### Świadomie poza MVP
+### Intentionally Out of Scope
 
-- konto użytkownika i logowanie
-- personalizacja profilu użytkownika
-- powiadomienia push, e-mail lub SMS
-- prognozy dla wszystkich stacji GIOŚ w Polsce
-- automatyczne wykrywanie lokalizacji użytkownika
-- prognozowanie innych zanieczyszczeń, np. NO2, SO2, O3
-- prognoza wielodniowa
-- aplikacja mobilna
-- interaktywna mapa całej Polski
-- zaawansowane alerty zdrowotne
-- rekomendacje medyczne
-- integracja z prywatnymi czujnikami lub urządzeniami IoT
+- user accounts and authentication
+- user profile personalization
+- push, email, or SMS notifications
+- forecasts for all GIOŚ stations in Poland
+- automatic user location detection
+- forecasting other pollutants such as NO2, SO2, or O3
+- multi-day forecasting
+- mobile application
+- interactive map of the entire country
+- advanced health alerts
+- medical recommendations
+- integration with private sensors or IoT devices
