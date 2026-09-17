@@ -12,28 +12,22 @@ from smogcast.storage.models import Measurement, Sensor
 from smogcast.storage.upsert import upsert_measurements
 
 
-# Ostatnie dni próbujemy pobierać
-# z bieżącego endpointu GIOŚ
 CURRENT_DATA_DAYS = 3
 
-# Dane do 2 dni uznajemy za świeże
 FRESH_DATA_DAYS = 2
 
 
-# Zamienia parametr używany w API
-# na kod zapisany w bazie
-#
-# W API używamy PM25,
-# a w bazie zapisujemy PM2.5
-def map_param(param):
+# Zamienia nazwę parametru na format z bazy.
+def map_param(
+    param,
+):
     if param == "PM25":
         return "PM2.5"
 
     return param
 
 
-# Pobiera wszystkie sensory
-# dla wybranej stacji i parametru
+# Pobiera sensory stacji z bazy.
 def get_sensors_for_station(
     db,
     station_id,
@@ -47,15 +41,17 @@ def get_sensors_for_station(
     return list(db.scalars(stmt))
 
 
-# Pobiera najnowszy timestamp
-# zapisany dla konkretnego sensora
+# Pobiera timestamp ostatniego pomiaru sensora.
 def get_latest_measurement_timestamp(
     db,
     sensor_id,
 ):
     stmt = (
         select(Measurement.timestamp)
-        .where(Measurement.sensor_id == sensor_id)
+        .where(
+            Measurement.sensor_id == sensor_id,
+            Measurement.value.is_not(None),
+        )
         .order_by(Measurement.timestamp.desc())
         .limit(1)
     )
@@ -63,11 +59,7 @@ def get_latest_measurement_timestamp(
     return db.scalar(stmt)
 
 
-# Zamienia rekordy zwrócone przez GIOŚ
-# na format używany w naszej bazie
-#
-# Timestamp GIOŚ traktujemy jako CET
-# i zapisujemy jako UTC bez timezone
+# Przygotowuje pomiary do zapisu.
 def prepare_measurements_for_database(
     sensor_id,
     measurements,
@@ -79,9 +71,12 @@ def prepare_measurements_for_database(
     for measurement in measurements:
         timestamp_text = measurement.get("Data")
 
-        # Jeśli rekord nie ma daty,
-        # pomijamy go
+        value = measurement.get("Wartość")
+
         if timestamp_text is None:
+            continue
+
+        if value is None:
             continue
 
         timestamp = datetime.fromisoformat(timestamp_text)
@@ -93,22 +88,15 @@ def prepare_measurements_for_database(
         prepared.append(
             {
                 "sensor_id": sensor_id,
-                "timestamp": (timestamp_utc.replace(tzinfo=None)),
-                "value": measurement.get("Wartość"),
+                "timestamp": timestamp_utc.replace(tzinfo=None),
+                "value": value,
             }
         )
 
     return prepared
 
 
-# Próbuje pobrać bieżące dane
-# dla jednego sensora
-#
-# Nie wszystkie sensory są obsługiwane
-# przez current API GIOŚ
-#
-# Jeśli endpoint zwróci 400,
-# traktujemy to jako brak current data
+# Pobiera bieżące dane sensora.
 def try_get_current_sensor_data(
     sensor_id,
 ):
@@ -127,8 +115,7 @@ def try_get_current_sensor_data(
     return measurements
 
 
-# Zwraca timestamp najnowszego
-# rekordu pobranego z current API
+# Pobiera timestamp najnowszego poprawnego rekordu.
 def get_latest_current_timestamp(
     measurements,
 ):
@@ -137,12 +124,15 @@ def get_latest_current_timestamp(
     for measurement in measurements:
         timestamp_text = measurement.get("Data")
 
+        value = measurement.get("Wartość")
+
         if timestamp_text is None:
             continue
 
-        timestamp = datetime.fromisoformat(timestamp_text)
+        if value is None:
+            continue
 
-        timestamps.append(timestamp)
+        timestamps.append(datetime.fromisoformat(timestamp_text))
 
     if not timestamps:
         return None
@@ -150,9 +140,7 @@ def get_latest_current_timestamp(
     return max(timestamps)
 
 
-# Sprawdza wszystkie sensory
-# i wybiera sensor mający
-# najświeższe bieżące dane
+# Wybiera sensor z najświeższymi bieżącymi danymi.
 def find_best_current_sensor(
     sensors,
 ):
@@ -182,9 +170,7 @@ def find_best_current_sensor(
     )
 
 
-# Jeśli żaden sensor nie ma current data,
-# wybiera sensor z najświeższymi
-# danymi zapisanymi w naszej bazie
+# Wybiera sensor z najświeższymi danymi w bazie.
 def find_best_historical_sensor(
     db,
     sensors,
@@ -208,28 +194,26 @@ def find_best_historical_sensor(
     return best_sensor
 
 
-# Uzupełnia starszą część luki
-# za pomocą archiwalnego endpointu GIOŚ
+# Uzupełnia starszą lukę z archiwum GIOŚ.
 def refresh_archive_part(
     db,
     sensor_id,
     date_from,
     date_to,
 ):
-    measurements, failed_ranges = get_sensor_data_for_period(
+    (
+        measurements,
+        failed_ranges,
+    ) = get_sensor_data_for_period(
         sensor_id=sensor_id,
         date_from=date_from.strftime("%Y-%m-%d 00:00"),
         date_to=date_to.strftime("%Y-%m-%d 23:00"),
         days_per_range=30,
     )
 
-    # Jeśli nie udało się pobrać
-    # któregoś zakresu, zgłaszamy błąd
     if failed_ranges:
         raise RuntimeError(f"Failed archival ranges: {failed_ranges}")
 
-    # Jeśli archiwum niczego nie zwróciło,
-    # przechodzimy dalej
     if not measurements:
         return
 
@@ -247,35 +231,40 @@ def refresh_archive_part(
     )
 
 
-# Zapisuje bieżące pomiary
-# pobrane z current API
+# Zapisuje tylko nowe bieżące pomiary.
 def save_current_measurements(
     db,
     sensor_id,
     measurements,
+    latest_timestamp,
 ):
     if not measurements:
-        return
+        return 0
 
     prepared = prepare_measurements_for_database(
         sensor_id=sensor_id,
         measurements=measurements,
     )
 
+    if latest_timestamp is not None:
+        prepared = [
+            measurement
+            for measurement in prepared
+            if measurement["timestamp"] > latest_timestamp
+        ]
+
     if not prepared:
-        return
+        return 0
 
     upsert_measurements(
         db,
         prepared,
     )
 
+    return len(prepared)
 
-# Określa status świeżości danych
-#
-# Dane do 2 dni uznajemy za świeże.
-# Starsze dane nadal mogą zostać użyte
-# do forecastu, ale zwracamy ostrzeżenie.
+
+# Określa świeżość danych.
 def get_data_freshness(
     latest_date,
 ):
@@ -301,8 +290,7 @@ def get_data_freshness(
     }
 
 
-# Aktualizuje dane PM
-# dla wybranej stacji i parametru
+# Aktualizuje jeden parametr dla stacji.
 def refresh_recent_measurements(
     station_id,
     param,
@@ -310,6 +298,7 @@ def refresh_recent_measurements(
     param_code = map_param(param)
 
     with SessionLocal() as db:
+        # Pobiera sensory zapisane w bazie.
         sensors = get_sensors_for_station(
             db,
             station_id,
@@ -319,6 +308,7 @@ def refresh_recent_measurements(
         if not sensors:
             raise ValueError("No sensor found for station and parameter")
 
+        # Szuka sensora z najświeższymi danymi.
         (
             current_sensor,
             current_measurements,
@@ -356,6 +346,7 @@ def refresh_recent_measurements(
 
         archive_end_date = current_start_date - timedelta(days=1)
 
+        # Uzupełnia starszą lukę.
         if latest_date < archive_end_date:
             archive_start_date = latest_date + timedelta(days=1)
 
@@ -366,10 +357,18 @@ def refresh_recent_measurements(
                 date_to=archive_end_date,
             )
 
-        save_current_measurements(
+        # Sprawdza timestamp po uzupełnieniu archiwum.
+        latest_timestamp = get_latest_measurement_timestamp(
+            db,
+            sensor.id,
+        )
+
+        # Dopisuje tylko nowsze rekordy.
+        new_records = save_current_measurements(
             db=db,
             sensor_id=sensor.id,
             measurements=current_measurements,
+            latest_timestamp=latest_timestamp,
         )
 
         refreshed_timestamp = get_latest_measurement_timestamp(
@@ -380,12 +379,11 @@ def refresh_recent_measurements(
         if refreshed_timestamp is None:
             raise RuntimeError("No measurements available after refresh")
 
-        refreshed_date = refreshed_timestamp.date()
-
-        freshness = get_data_freshness(refreshed_date)
+        freshness = get_data_freshness(refreshed_timestamp.date())
 
         return {
             "sensor_id": sensor.id,
+            "new_records": new_records,
             "data_date": freshness["data_date"],
             "data_age_days": freshness["data_age_days"],
             "data_status": freshness["data_status"],
@@ -393,8 +391,7 @@ def refresh_recent_measurements(
         }
 
 
-# Aktualizuje PM10 i PM2.5
-# dla jednej wybranej stacji
+# Aktualizuje PM10 i PM2.5 dla stacji.
 def refresh_station_measurements(
     station_id,
 ):

@@ -24,11 +24,7 @@ from smogcast.storage.models import (
 router = APIRouter()
 
 
-# Zamienia parametr używany w API
-# na kod zapisany w bazie
-#
-# W API używamy PM25,
-# a w bazie zapisujemy PM2.5
+# Zamienia nazwę parametru na format z bazy.
 def map_param(
     param,
 ):
@@ -38,7 +34,7 @@ def map_param(
     return param
 
 
-# Sprawdza działanie API
+# Sprawdza działanie API.
 @router.get(
     "/health",
     response_model=HealthResponse,
@@ -49,25 +45,36 @@ def health():
     }
 
 
-# Zwraca listę wszystkich stacji
+# Zwraca stacje dostępne w Smogcast.
 @router.get(
     "/stations",
     response_model=list[StationResponse],
 )
 def get_stations():
     with SessionLocal() as db:
-        stmt = select(Station).order_by(
-            Station.city,
-            Station.name,
+        stmt = (
+            select(
+                Station,
+            )
+            .join(
+                Sensor,
+                Sensor.station_id == Station.id,
+            )
+            .join(
+                Measurement,
+                Measurement.sensor_id == Sensor.id,
+            )
+            .distinct()
+            .order_by(
+                Station.city,
+                Station.name,
+            )
         )
 
-        stations = list(db.scalars(stmt))
-
-        return stations
+        return list(db.scalars(stmt))
 
 
-# Zwraca pomiary dla wybranej stacji
-# i parametru
+# Zwraca pomiary dla stacji i parametru.
 @router.get(
     "/stations/{station_id}/measurements",
     response_model=list[MeasurementResponse],
@@ -110,6 +117,7 @@ def get_measurements(
             )
         )
 
+        # Ogranicza zakres dat.
         if date_from is not None:
             stmt = stmt.where(Measurement.timestamp >= date_from)
 
@@ -124,16 +132,14 @@ def get_measurements(
             {
                 "sensor_id": sensor.id,
                 "param": param,
-                "timestamp": (measurement.timestamp),
+                "timestamp": measurement.timestamp,
                 "value": measurement.value,
             }
             for measurement, sensor in rows
         ]
 
 
-# Zwraca najnowsze dostępne
-# pomiary PM10 i PM2.5
-# dla wybranej stacji
+# Zwraca najnowsze pomiary PM10 i PM2.5.
 @router.get(
     "/stations/{station_id}/latest",
     response_model=list[MeasurementResponse],
@@ -155,10 +161,7 @@ def get_latest_measurements(
                 detail="Station not found",
             )
 
-        for (
-            api_param,
-            db_param,
-        ) in [
+        for api_param, db_param in [
             (
                 "PM10",
                 "PM10",
@@ -168,6 +171,7 @@ def get_latest_measurements(
                 "PM2.5",
             ),
         ]:
+            # Pobiera najnowszy poprawny pomiar.
             stmt = (
                 select(
                     Measurement,
@@ -180,6 +184,7 @@ def get_latest_measurements(
                 .where(
                     Sensor.station_id == station_id,
                     Sensor.param_code == db_param,
+                    Measurement.value.is_not(None),
                 )
                 .order_by(Measurement.timestamp.desc())
                 .limit(1)
@@ -196,7 +201,7 @@ def get_latest_measurements(
                 {
                     "sensor_id": sensor.id,
                     "param": api_param,
-                    "timestamp": (measurement.timestamp),
+                    "timestamp": measurement.timestamp,
                     "value": measurement.value,
                 }
             )
@@ -204,8 +209,7 @@ def get_latest_measurements(
     return results
 
 
-# Zwraca prognozę PM10 i PM2.5
-# na kolejny dzień dla jednej stacji
+# Zwraca prognozę PM10 i PM2.5 na jutro.
 @router.get(
     "/stations/{station_id}/forecast",
     response_model=ForecastResponse,

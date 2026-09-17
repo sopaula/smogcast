@@ -1,6 +1,6 @@
 ## 2. Schemat danych
 
-System wykorzystuje następujące tabele:
+System wykorzystuje następujące tabele.
 
 
 ### stations
@@ -32,7 +32,9 @@ Relacja:
 
 Jedna stacja może posiadać wiele sensorów, również więcej niż jeden sensor mierzący ten sam parametr.
 
-Podczas wykonywania bieżącej prognozy system sprawdza dostępne sensory dla danego parametru i wybiera sensor posiadający najświeższe dostępne dane.
+Informacje o sensorach są przechowywane lokalnie w bazie i nie muszą być pobierane z API GIOŚ przy każdym odświeżeniu danych.
+
+Podczas aktualizacji system wykorzystuje sensory zapisane w bazie i wybiera sensor posiadający najświeższe dostępne dane dla danego parametru.
 
 
 ### measurements
@@ -63,7 +65,13 @@ Dane pomiarowe są uzupełniane z dwóch źródeł API GIOŚ:
 - endpointu archiwalnego – wykorzystywanego do uzupełniania starszych braków,
 - endpointu bieżącego – wykorzystywanego do pobierania najnowszych dostępnych pomiarów.
 
-Jeżeli bieżący endpoint GIOŚ nie udostępnia danych dla konkretnego sensora, system wykorzystuje najświeższe dane dostępne w bazie.
+Bieżące dane są pobierane przez osobny proces aktualizujący.
+
+Podczas aktualizacji system zapisuje wyłącznie rekordy nowsze od ostatniego poprawnego pomiaru znajdującego się w bazie.
+
+Jeżeli luka w danych jest większa niż zakres dostępny w endpointzie bieżącym, system uzupełnia brakujące dane przy użyciu endpointu archiwalnego.
+
+Jeżeli bieżący endpoint GIOŚ nie udostępnia danych dla konkretnego sensora, system może wykorzystać najświeższe dane już dostępne w bazie.
 
 
 ### weather
@@ -113,14 +121,18 @@ Przechowuje dobowe agregaty pomiarów jakości powietrza.
 
 Tabela powstaje na etapie przetwarzania danych i jest wykorzystywana do budowy cech oraz wykonywania predykcji.
 
-Podczas wykonywania bieżącej prognozy agregaty dobowe są aktualizowane na podstawie sensorów wybranych jako najaktualniejsze dla PM10 i PM2.5.
+Agregaty dobowe nie są już przeliczane podczas wykonywania prognozy użytkownika.
 
-Pozwala to uniknąć mieszania danych pochodzących z kilku różnych sensorów tego samego parametru.
+Po pobraniu nowych pomiarów osobny proces aktualizujący przelicza agregaty dla sensorów, dla których pojawiły się nowe dane.
+
+Forecast korzysta następnie z gotowych danych zapisanych w tabeli `daily_measurements`.
+
+Pozwala to oddzielić aktualizację danych od obsługi żądania użytkownika i skrócić czas wykonywania prognozy.
 
 
 ### predictions
 
-Przechowuje prognozy wygenerowane przez model.
+Tabela została przewidziana do przechowywania prognoz wygenerowanych przez model.
 
 | Kolumna | Typ / rola | Opis |
 |---|---|---|
@@ -138,7 +150,7 @@ Relacja:
 
 PM10 i PM2.5 są prognozowane niezależnie i mogą być zapisywane jako osobne rekordy.
 
-Połączenie wyników następuje dopiero na poziomie odpowiedzi API.
+Obecnie prognoza jest generowana na żądanie i zwracana przez API. Tabela może zostać wykorzystana w przyszłości do przechowywania historii wykonanych prognoz.
 
 
 ### Relacje między tabelami
@@ -162,15 +174,23 @@ stations
 
 API zostało zaprojektowane od strony potrzeb dashboardu.
 
-Dashboard powinien umożliwiać:
+Dashboard umożliwia:
 
+- podgląd mapy stacji,
 - wybór stacji,
 - podgląd ostatnich pomiarów,
+- podgląd historii pomiarów,
 - uzyskanie prognozy jakości powietrza na kolejny dzień.
+
+Dashboard nie pobiera danych bezpośrednio z API GIOŚ.
+
+Dane o jakości powietrza są wcześniej aktualizowane przez osobny proces i zapisywane w lokalnej bazie.
+
+Dzięki temu odpowiedzi API nie muszą czekać na zewnętrzne zapytania do GIOŚ.
 
 Prognoza dla wybranej stacji zawiera jednocześnie wartości PM10 i PM2.5.
 
-Oba parametry są jednak pobierane, przetwarzane i prognozowane niezależnie.
+Oba parametry są jednak przetwarzane i prognozowane niezależnie.
 
 
 ### GET /stations
@@ -210,6 +230,8 @@ Przykładowa odpowiedź:
 ]
 ```
 
+Endpoint zwraca stacje, dla których w lokalnej bazie znajdują się dane pomiarowe.
+
 
 ### GET /stations/{station_id}/measurements
 
@@ -223,11 +245,11 @@ Parametry ścieżki:
 
 - `station_id` – identyfikator stacji.
 
-Parametry zapytania mogą określać m.in.:
+Parametry zapytania:
 
-- parametr PM,
-- początek zakresu czasu,
-- koniec zakresu czasu.
+- `param` – `PM10` lub `PM25`,
+- `date_from` – opcjonalny początek zakresu czasu,
+- `date_to` – opcjonalny koniec zakresu czasu.
 
 Przykładowe zapytanie:
 
@@ -235,10 +257,12 @@ Przykładowe zapytanie:
 
 Endpoint umożliwia pobieranie danych pomiarowych używanych m.in. do prezentacji historii jakości powietrza w dashboardzie.
 
+Dane są odczytywane bezpośrednio z lokalnej bazy.
+
 
 ### GET /stations/{station_id}/latest
 
-Zwraca najnowsze dostępne pomiary dla wybranej stacji.
+Zwraca najnowsze dostępne pomiary PM10 i PM2.5 dla wybranej stacji.
 
 Metoda:
 
@@ -251,6 +275,12 @@ Parametry ścieżki:
 Przykładowe zapytanie:
 
 `GET /stations/117/latest`
+
+Endpoint korzysta wyłącznie z lokalnej bazy danych.
+
+Dla każdego parametru wybierany jest najnowszy rekord posiadający poprawną wartość pomiarową.
+
+Rekordy z `value = NULL` są pomijane.
 
 
 ### GET /stations/{station_id}/forecast
@@ -278,21 +308,23 @@ Przykładowa odpowiedź:
 ```json
 {
   "station_id": 117,
-  "forecast_date": "2026-09-08",
+  "forecast_date": "2026-09-18",
   "pm10": {
+    "sensor_id": 1234,
     "forecast_value": 41.2,
     "threshold": 50.0,
     "alarm": false,
-    "data_date": "2026-07-30",
-    "data_age_days": 39,
-    "data_status": "stale",
-    "warning": "Forecast is based on older PM data. Latest available measurement is from 2026-07-30."
+    "data_date": "2026-09-17",
+    "data_age_days": 0,
+    "data_status": "fresh",
+    "warning": null
   },
   "pm25": {
+    "sensor_id": 5678,
     "forecast_value": 18.7,
     "threshold": 25.0,
     "alarm": false,
-    "data_date": "2026-09-07",
+    "data_date": "2026-09-17",
     "data_age_days": 0,
     "data_status": "fresh",
     "warning": null
@@ -302,21 +334,23 @@ Przykładowa odpowiedź:
 
 PM10 i PM2.5 są prognozowane niezależnie.
 
+Podczas wykonywania prognozy system nie pobiera nowych danych z GIOŚ.
+
 Dla każdego parametru system:
 
-1. wyszukuje sensory przypisane do wybranej stacji,
-2. sprawdza dostępność najnowszych danych,
-3. wybiera sensor posiadający najświeższe dostępne pomiary,
-4. próbuje uzupełnić brakujące dane z API GIOŚ,
-5. aktualizuje dobowe agregaty,
-6. pobiera prognozę pogody na kolejny dzień,
-7. buduje cechy wejściowe modelu,
-8. wykonuje predykcję,
-9. sprawdza próg alarmowy,
-10. określa aktualność danych wejściowych.
+1. odczytuje z lokalnej bazy najnowszy dostępny pomiar,
+2. określa sensor, z którego pochodzi najnowszy pomiar,
+3. sprawdza aktualność danych wejściowych,
+4. pobiera 7 ostatnich agregatów dobowych,
+5. pobiera prognozę pogody na kolejny dzień z Open-Meteo,
+6. buduje cechy wejściowe modelu,
+7. wykonuje predykcję,
+8. sprawdza próg alarmowy,
+9. zwraca prognozę wraz z informacją o aktualności danych.
 
 Dla każdego parametru odpowiedź zawiera:
 
+- `sensor_id` – identyfikator sensora, z którego pochodzą najnowsze dane,
 - `forecast_value` – prognozowane stężenie,
 - `threshold` – próg wykorzystywany przez system do ustawienia flagi alarmu,
 - `alarm` – informację o przekroczeniu progu,
@@ -337,15 +371,16 @@ Jeżeli najnowsze dostępne dane są starsze niż 2 dni, prognoza nadal może zo
 
 oraz odpowiednie ostrzeżenie w polu `warning`.
 
-Dzięki temu system wykorzystuje najświeższe możliwe dane, ale jednocześnie informuje użytkownika o ich aktualności.
+Dzięki temu system wykorzystuje dane znajdujące się już w bazie i jednocześnie informuje użytkownika o ich aktualności.
 
 
 ## 4. Przepływ danych
 
-System wykorzystuje dwa główne przepływy danych:
+System wykorzystuje trzy główne przepływy:
 
 1. przepływ historyczny – służący do przygotowania danych i trenowania modelu,
-2. przepływ bieżący – służący do wykonywania prognozy dla użytkownika.
+2. przepływ aktualizacji bieżących danych – służący do regularnego pobierania nowych pomiarów z GIOŚ,
+3. przepływ prognozy – służący do wykonywania prognozy dla użytkownika.
 
 
 ### 4.1. Przepływ danych historycznych
@@ -376,9 +411,9 @@ GIOŚ – dane archiwalne PM
             ├───────────────┐
             │               │
             ▼               ▼
-          PM         Open-Meteo archive
-                             │
-                             ▼
+           PM        Open-Meteo archive
+                            │
+                            ▼
                        dane pogodowe
                        ├── temperatura
                        ├── wiatr
@@ -400,96 +435,228 @@ Dane historyczne są wykorzystywane do trenowania i ewaluacji modelu.
 PM10 i PM2.5 pozostają osobnymi obserwacjami również podczas przygotowywania danych treningowych.
 
 
-### 4.2. Przepływ prognozy bieżącej
+### 4.2. Przepływ aktualizacji bieżących danych
 
-Użytkownik wybiera stację.
+Aktualizacja danych została oddzielona od dashboardu i od wykonywania prognozy.
 
-System przygotowuje następnie niezależnie dane dla PM10 i PM2.5.
+Za pobieranie nowych danych odpowiada osobny proces:
+
+`refresh_all.py`
+
+Proces aktualizuje wszystkie stacje wykorzystywane w Smogcast.
 
 ```text
-              Użytkownik
-                  │
-                  ▼
-          wybór jednej stacji
-                  │
-          ┌───────┴───────┐
-          │               │
-          ▼               ▼
-        PM10            PM2.5
-          │               │
-          ▼               ▼
-   sensory PM10      sensory PM2.5
-          │               │
-          ▼               ▼
-   wybór sensora     wybór sensora
-   z najświeższymi   z najświeższymi
-       danymi            danymi
-          │               │
-          └───────┬───────┘
-                  ▼
-        aktualizacja pomiarów
-                  │
-          ┌───────┴───────┐
-          │               │
-          ▼               ▼
-    GIOŚ archive      GIOŚ current
-          │               │
-          └───────┬───────┘
-                  ▼
-            measurements
-                  │
-                  ▼
-          daily_measurements
-                  │
-          ┌───────┴───────┐
-          │               │
-          ▼               ▼
-      cechy PM10       cechy PM2.5
-          │               │
-          └───────┬───────┘
-                  │
-                  │
-          Open-Meteo forecast
-                  │
-                  ▼
-     temperatura / wiatr / wilgotność
-                  │
-          ┌───────┴───────┐
-          ▼               ▼
-     model dla PM10   model dla PM2.5
-          │               │
-          ▼               ▼
-    forecast PM10    forecast PM2.5
-          │               │
-          ▼               ▼
-       alarm             alarm
-          │               │
-          ▼               ▼
-    fresh / stale    fresh / stale
-          │               │
-          └───────┬───────┘
-                  ▼
-          odpowiedź API
-                  │
-                  ▼
-          PM10 + PM2.5
+               refresh_all.py
+                     │
+                     ▼
+            lista stacji z bazy
+                     │
+                     ▼
+             sensory PM10/PM2.5
+                     │
+                     ▼
+                GIOŚ current
+                     │
+                     ▼
+          najnowsze rekordy pomiarowe
+                     │
+                     ▼
+      porównanie z ostatnim timestampem
+                     │
+              ┌──────┴──────┐
+              │             │
+              │ brak luki   │ starsza luka
+              │             │
+              ▼             ▼
+        zapis nowych     GIOŚ archive
+          rekordów           │
+              │              ▼
+              │       uzupełnienie braków
+              │              │
+              └───────┬──────┘
+                      ▼
+                 measurements
+                      │
+                      ▼
+             daily_measurements
+                      │
+                      ▼
+              lokalna baza SQLite
 ```
 
-PM10 i PM2.5 są pobierane, agregowane i prognozowane niezależnie.
+Podczas standardowej aktualizacji wykorzystywany jest endpoint bieżących danych GIOŚ.
 
-Połączenie obu wyników następuje dopiero na poziomie odpowiedzi API.
+System pobiera maksymalnie 100 rekordów w jednym zapytaniu.
 
-Dla każdego parametru system wybiera najświeższe dostępne dane. Jeżeli aktualny endpoint GIOŚ nie udostępnia pomiarów dla danego sensora, wykorzystywane są najnowsze dane możliwe do uzyskania z pozostałych dostępnych źródeł.
+Do bazy zapisywane są wyłącznie rekordy nowsze niż ostatni poprawny pomiar zapisany dla danego sensora.
 
-Jeżeli najnowsze dane mają więcej niż 2 dni, prognoza nadal może zostać wykonana, ale zostaje oznaczona jako oparta na starszych danych.
+Jeżeli ostatni pomiar w bazie jest starszy niż zakres obejmowany przez bieżący endpoint GIOŚ, brakujące dane są uzupełniane przy użyciu endpointu archiwalnego.
+
+Po zapisaniu nowych pomiarów przeliczane są agregaty dobowe dla sensorów, dla których pojawiły się nowe dane.
+
+Aktualizacja nie jest wykonywana w trakcie ładowania dashboardu ani podczas wywołania endpointu prognozy.
+
+Dzięki temu użytkownik nie musi czekać na zakończenie zapytań do GIOŚ.
+
+Proces aktualizacji wszystkich 16 stacji trwał podczas testu około:
+
+`17,53 s`
+
+i zakończył się bez błędów.
+
+
+### 4.3. Przepływ prognozy bieżącej
+
+Użytkownik wybiera stację w dashboardzie.
+
+System korzysta następnie z danych, które zostały wcześniej zapisane w lokalnej bazie.
+
+```text
+                 Użytkownik
+                     │
+                     ▼
+              wybór jednej stacji
+                     │
+                     ▼
+                FastAPI
+                     │
+                     ▼
+               lokalna baza
+                     │
+             ┌───────┴───────┐
+             │               │
+             ▼               ▼
+           PM10            PM2.5
+             │               │
+             ▼               ▼
+      daily_measurements  daily_measurements
+             │               │
+             ▼               ▼
+         cechy PM10       cechy PM2.5
+             │               │
+             └───────┬───────┘
+                     │
+                     │
+           Open-Meteo forecast
+                     │
+                     ▼
+       temperatura / wiatr / wilgotność
+                     │
+             ┌───────┴───────┐
+             ▼               ▼
+         model PM10       model PM2.5
+             │               │
+             ▼               ▼
+       forecast PM10     forecast PM2.5
+             │               │
+             ▼               ▼
+           alarm             alarm
+             │               │
+             ▼               ▼
+        fresh / stale    fresh / stale
+             │               │
+             └───────┬───────┘
+                     ▼
+                odpowiedź API
+                     │
+                     ▼
+                  dashboard
+```
+
+PM10 i PM2.5 są prognozowane niezależnie.
+
+Forecast nie wykonuje odświeżania danych z GIOŚ.
+
+Dane PM są odczytywane wyłącznie z lokalnej bazy.
+
+Dla każdego parametru system wykorzystuje 7 ostatnich agregatów dobowych do obliczenia cech:
+
+- wartość z poprzedniego dnia,
+- średnią z 3 dni,
+- średnią z 7 dni.
+
+Dodatkowo wykorzystywane są:
+
+- miesiąc,
+- dzień tygodnia,
+- informacja o weekendzie,
+- informacja o sezonie grzewczym,
+- temperatura,
+- prędkość wiatru,
+- wilgotność.
 
 Prognoza pogody Open-Meteo jest pobierana dla kolejnego dnia i wykorzystywana wyłącznie jako wejście modelu.
+
+Model jest wczytywany z pliku:
+
+`models/model_v2.joblib`
+
+i przechowywany w pamięci aplikacji, dzięki czemu nie musi być ponownie ładowany przy każdym zapytaniu o prognozę.
+
+Dla każdego parametru system określa również świeżość danych wejściowych.
+
+Jeżeli najnowsze dane mają maksymalnie 2 dni, otrzymują status:
+
+`fresh`
+
+Jeżeli są starsze niż 2 dni:
+
+`stale`
+
+i użytkownik otrzymuje dodatkowe ostrzeżenie.
 
 Użytkownik otrzymuje jedną odpowiedź dla wybranej stacji zawierającą:
 
 - prognozę PM10,
+- identyfikator sensora PM10,
 - flagę alarmu PM10,
 - informację o aktualności danych PM10,
 - prognozę PM2.5,
+- identyfikator sensora PM2.5,
 - flagę alarmu PM2.5,
 - informację o aktualności danych PM2.5.
+
+
+### 4.4. Przepływ danych do dashboardu
+
+Dashboard komunikuje się wyłącznie z API aplikacji.
+
+Nie wykonuje bezpośrednich zapytań do GIOŚ.
+
+```text
+                SQLite
+                   │
+                   ▼
+                FastAPI
+                   │
+                   ▼
+               Streamlit
+                   │
+        ┌──────────┼──────────┐
+        ▼          ▼          ▼
+      mapa      pomiary    historia
+                               │
+                               ▼
+                           prognoza
+```
+
+Dashboard umożliwia:
+
+- wyświetlenie mapy dostępnych stacji,
+- przełączanie widoku PM10 i PM2.5,
+- podgląd najnowszych pomiarów,
+- podgląd czasu wykonania ostatniego pomiaru,
+- wybór konkretnej stacji,
+- podgląd prognozy na kolejny dzień,
+- podgląd historii pomiarów.
+
+Wartości na dashboardzie są dodatkowo oznaczone kolorami zależnie od poziomu względem progu:
+
+- zielony – wartość wyraźnie poniżej progu,
+- żółty – wartość zbliżona do progu,
+- czerwony – przekroczenie progu.
+
+Dashboard zawiera również stale widoczną informację o źródłach danych:
+
+- Główny Inspektorat Ochrony Środowiska – dane o jakości powietrza,
+- Open-Meteo – dane meteorologiczne.
