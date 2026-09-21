@@ -31,6 +31,66 @@ _stations_cache = {
 _sensors_cache = {}
 
 
+_http_metrics = {
+    "total_requests": 0,
+    "retries": 0,
+    "rate_limit_retries": 0,
+    "timeout_retries": 0,
+    "current_requests": 0,
+    "current_time": 0.0,
+    "archive_requests": 0,
+    "archive_time": 0.0,
+    "metadata_requests": 0,
+    "metadata_time": 0.0,
+}
+
+
+# Zeruje statystyki HTTP.
+def reset_http_metrics():
+    time_metrics = {
+        "current_time",
+        "archive_time",
+        "metadata_time",
+    }
+
+    for key in _http_metrics:
+        if key in time_metrics:
+            _http_metrics[key] = 0.0
+        else:
+            _http_metrics[key] = 0
+
+
+# Zwraca statystyki HTTP.
+def get_http_metrics():
+    return _http_metrics.copy()
+
+
+# Wykonuje zapytanie i zapisuje jego czas.
+def timed_get(
+    url,
+    category,
+    **kwargs,
+):
+    _http_metrics["total_requests"] += 1
+
+    request_key = f"{category}_requests"
+
+    time_key = f"{category}_time"
+
+    _http_metrics[request_key] += 1
+
+    start = time.perf_counter()
+
+    try:
+        return client.get(
+            url,
+            **kwargs,
+        )
+
+    finally:
+        _http_metrics[time_key] += time.perf_counter() - start
+
+
 # Wyciąga listę stacji z odpowiedzi API.
 def parse_stations(
     data,
@@ -48,8 +108,9 @@ def get_all_stations():
 
     stations = []
 
-    response = client.get(
+    response = timed_get(
         STATIONS_URL,
+        category="metadata",
         params={
             "size": 100,
         },
@@ -69,8 +130,9 @@ def get_all_stations():
         1,
         total_pages,
     ):
-        response = client.get(
+        response = timed_get(
             STATIONS_URL,
+            category="metadata",
             params={
                 "page": page,
                 "size": 100,
@@ -86,6 +148,7 @@ def get_all_stations():
 
     # Zapisuje wynik w cache.
     _stations_cache["data"] = stations
+
     _stations_cache["expires_at"] = time.monotonic() + METADATA_CACHE_TTL_SECONDS
 
     return stations
@@ -103,8 +166,9 @@ def get_station_sensors(
     if cached is not None and now < cached["expires_at"]:
         return cached["data"]
 
-    response = client.get(
+    response = timed_get(
         f"{SENSORS_URL}/{station_id}",
+        category="metadata",
         timeout=10.0,
     )
 
@@ -177,13 +241,18 @@ def get_archival_data_by_sensor(
     max_retries=3,
 ):
     all_measurements = []
+
     page = 0
 
     while True:
         for attempt in range(max_retries):
+            if attempt > 0:
+                _http_metrics["retries"] += 1
+
             try:
-                response = client.get(
+                response = timed_get(
                     f"{SENSOR_ARCHIVAL_URL}/{sensor_id}",
+                    category="archive",
                     params={
                         "dateFrom": date_from,
                         "dateTo": date_to,
@@ -194,6 +263,8 @@ def get_archival_data_by_sensor(
                 )
 
                 if response.status_code == 429:
+                    _http_metrics["rate_limit_retries"] += 1
+
                     print("Za dużo zapytań. Czekam 10 sekund...")
 
                     time.sleep(10)
@@ -216,6 +287,8 @@ def get_archival_data_by_sensor(
                 httpx.ReadTimeout,
                 httpx.ConnectTimeout,
             ):
+                _http_metrics["timeout_retries"] += 1
+
                 print(
                     f"Timeout dla sensora "
                     f"{sensor_id}, "
@@ -254,6 +327,7 @@ def get_sensor_data_for_period(
     )
 
     all_measurements = []
+
     failed_ranges = []
 
     for range_from, range_to in ranges:
@@ -294,6 +368,7 @@ def get_data_for_sensor_records(
     days_per_range=30,
 ):
     all_measurements = []
+
     failed_ranges = []
 
     for i, sensor in enumerate(
@@ -313,7 +388,8 @@ def get_data_for_sensor_records(
         parameter = sensor["parameter"]
 
         print(
-            f"\n{i}/{len(sensor_records)} | "
+            f"\n{i}/"
+            f"{len(sensor_records)} | "
             f"{voivodeship} | "
             f"{city} | "
             f"{parameter} | "
@@ -375,9 +451,13 @@ def get_current_sensor_data(
     max_retries=3,
 ):
     for attempt in range(max_retries):
+        if attempt > 0:
+            _http_metrics["retries"] += 1
+
         try:
-            response = client.get(
+            response = timed_get(
                 f"{CURRENT_DATA_URL}/{sensor_id}",
+                category="current",
                 params={
                     "size": 100,
                 },
@@ -385,6 +465,8 @@ def get_current_sensor_data(
             )
 
             if response.status_code == 429:
+                _http_metrics["rate_limit_retries"] += 1
+
                 print("Za dużo zapytań do GIOŚ. Czekam 10 sekund...")
 
                 time.sleep(10)
@@ -401,8 +483,10 @@ def get_current_sensor_data(
             httpx.ReadTimeout,
             httpx.ConnectTimeout,
         ):
+            _http_metrics["timeout_retries"] += 1
+
             print(
-                f"Timeout dla bieżących danych "
+                "Timeout dla bieżących danych "
                 f"sensora {sensor_id}. "
                 f"Próba "
                 f"{attempt + 1}/"

@@ -1,7 +1,43 @@
+# SmogCast – Design Document
+
+## 1. Goal and Architecture
+
+SmogCast is an application for monitoring and forecasting air quality in Poland.
+
+The system uses:
+- measurement data from GIOŚ,
+- weather data from Open-Meteo,
+- a local SQLite database,
+- a machine learning model,
+- FastAPI as the backend,
+- Streamlit as the dashboard.
+
+Main architecture:
+
+    GIOŚ
+      │
+      ▼
+    refresh_all.py
+      │
+      ▼
+    SQLite
+      │
+      ├──────────────► FastAPI ──────────────► Streamlit
+      │
+      └──────────────► daily_measurements
+                               │
+                               ▼
+                           ML model
+                               │
+                               ▼
+                           forecast
+
+Data refreshing has been separated from both the dashboard and the forecast process.
+
+The dashboard and the forecast endpoint do not fetch new data directly from GIOŚ. They use data that has already been stored in the database.
+
+
 ## 2. Data Schema
-
-The system uses the following tables.
-
 
 ### stations
 
@@ -12,9 +48,8 @@ Stores information about monitoring stations.
 | `id` | PK | unique station identifier |
 | `name` |  | station name |
 | `city` |  | city |
-| `latitude` |  | geographic latitude |
-| `longitude` |  | geographic longitude |
-
+| `latitude` |  | latitude |
+| `longitude` |  | longitude |
 
 ### sensors
 
@@ -24,18 +59,11 @@ Stores information about sensors assigned to stations.
 |---|---|---|
 | `id` | PK | unique sensor identifier |
 | `station_id` | FK | station identifier |
-| `param_code` |  | measured parameter code, e.g. `PM10`, `PM2.5` |
+| `param_code` |  | parameter code, e.g. `PM10`, `PM2.5` |
 
-Relationship:
+One station may have multiple sensors, including more than one sensor measuring the same parameter.
 
-`stations.id -> sensors.station_id`
-
-One station can have multiple sensors, including more than one sensor measuring the same parameter.
-
-Sensor information is stored locally in the database and does not need to be fetched from the GIOŚ API during every data refresh.
-
-During the update process, the system uses sensors stored in the database and selects the sensor with the freshest available data for the given parameter.
-
+Sensors are stored locally in the database, so they do not have to be fetched from the GIOŚ API during every refresh.
 
 ### measurements
 
@@ -43,36 +71,16 @@ Stores raw air quality measurements.
 
 | Column | Type / role | Description |
 |---|---|---|
-| `id` | PK | unique measurement identifier |
+| `id` | PK | measurement identifier |
 | `sensor_id` | FK | sensor identifier |
 | `timestamp` | UTC | measurement timestamp |
 | `value` | nullable | concentration value in µg/m³ |
 
-Relationship:
-
-`sensors.id -> measurements.sensor_id`
-
-Additional constraint:
+The following combination is unique:
 
 `UNIQUE(sensor_id, timestamp)`
 
-This means that no more than one measurement can exist for the same sensor and timestamp.
-
-The `value` column is nullable. A missing value represents a missing measurement and must not be automatically replaced with `0`.
-
-Measurement data is supplemented using two GIOŚ API sources:
-
-- archival endpoint – used to fill older gaps,
-- current endpoint – used to retrieve the latest available measurements.
-
-Current data is retrieved by a separate update process.
-
-During an update, the system stores only records newer than the latest valid measurement already available in the database.
-
-If the data gap is larger than the range available through the current endpoint, the system fills the missing data using the archival endpoint.
-
-If the current GIOŚ endpoint does not provide data for a specific sensor, the system can use the freshest data already available in the database.
-
+A `NULL` value means that there is no valid measurement and it is not automatically replaced with `0`.
 
 ### weather
 
@@ -80,583 +88,276 @@ Stores historical weather data for station locations.
 
 | Column | Type / role | Description |
 |---|---|---|
-| `id` | PK | unique weather record identifier |
+| `id` | PK | record identifier |
 | `station_id` | FK | station identifier |
-| `timestamp` |  | weather measurement timestamp |
-| `temp_c` |  | temperature in °C |
-| `wind_ms` |  | wind speed in m/s |
+| `timestamp` |  | measurement timestamp |
+| `temp_c` |  | temperature |
+| `wind_ms` |  | wind speed |
 | `humidity` |  | humidity |
-| `pressure_hpa` |  | atmospheric pressure in hPa |
-| `precip_mm` |  | precipitation in mm |
+| `pressure_hpa` |  | pressure |
+| `precip_mm` |  | precipitation |
 
-Relationship:
-
-`stations.id -> weather.station_id`
-
-Historical weather data is assigned to station locations and used during preparation of the model training dataset.
-
-When generating a forecast for the next day, the system retrieves the weather forecast directly from Open-Meteo.
-
-The following weather features are passed to the model:
-
+The model uses:
 - temperature,
 - wind speed,
 - humidity.
 
-The weather forecast is used only as model input and is not returned to the user in the forecast endpoint response.
-
+The weather forecast for the next day is fetched from Open-Meteo.
 
 ### daily_measurements
 
-Stores daily aggregates of air quality measurements.
+Stores daily aggregates of PM10 and PM2.5 measurements.
 
 | Column | Description |
 |---|---|
 | `station_id` | station identifier |
-| `param_code` | parameter, e.g. `PM10` or `PM2.5` |
+| `param_code` | parameter |
 | `date` | date |
 | `mean_value` | daily mean |
-| `max_value` | daily maximum value |
-| `coverage` | data coverage for the given day |
+| `max_value` | daily maximum |
+| `coverage` | data coverage |
 
-The table is created during the data processing stage and is used for feature engineering and prediction.
+The forecast uses the 7 most recent valid daily aggregates.
 
-Daily aggregates are no longer recalculated while handling a user forecast request.
-
-After new measurements are downloaded, a separate update process recalculates aggregates for sensors for which new data has appeared.
-
-The forecast process then uses ready-to-use data stored in the `daily_measurements` table.
-
-This separates data updates from user requests and reduces forecast response time.
-
+Records with `mean_value = NULL` are skipped.
 
 ### predictions
 
-The table is intended for storing forecasts generated by the model.
+Table intended for storing generated forecasts.
 
 | Column | Type / role | Description |
 |---|---|---|
-| `id` | PK | unique prediction identifier |
+| `id` | PK | forecast identifier |
 | `station_id` | FK | station identifier |
-| `param_code` |  | predicted parameter |
-| `target_date` |  | date for which the prediction was generated |
+| `param_code` |  | forecasted parameter |
+| `target_date` |  | forecast date |
 | `predicted_value` |  | predicted concentration |
 | `model_version` |  | model version |
-| `created_at` |  | prediction creation timestamp |
+| `created_at` |  | creation time |
 
-Relationship:
+Currently, forecasts are generated on demand and returned directly by the API.
 
-`stations.id -> predictions.station_id`
 
-PM10 and PM2.5 are predicted independently and can be stored as separate records.
+## 3. Relationships Between Tables
 
-Currently, forecasts are generated on demand and returned through the API. The table can be used in the future to store historical predictions.
+    stations
+       │
+       ├──< sensors
+       │      │
+       │      └──< measurements
+       │
+       ├──< weather
+       │
+       ├──< daily_measurements
+       │
+       └──< predictions
 
+Relationships:
+- `stations.id -> sensors.station_id`
+- `sensors.id -> measurements.sensor_id`
+- `stations.id -> weather.station_id`
+- `stations.id -> daily_measurements.station_id`
+- `stations.id -> predictions.station_id`
 
-### Relationships Between Tables
 
-```text
-stations
-   │
-   ├──< sensors
-   │      │
-   │      └──< measurements
-   │
-   ├──< weather
-   │
-   ├──< daily_measurements
-   │
-   └──< predictions
-```
+## 4. Data Refresh
 
+Data refreshing is handled by:
 
-## 3. API Contract
+`scripts/refresh_all.py`
 
-The API was designed based on the needs of the dashboard.
+Refresh flow:
 
-The dashboard allows the user to:
-
-- view the station map,
-- select a station,
-- view the latest measurements,
-- view measurement history,
-- obtain an air quality forecast for the next day.
-
-The dashboard does not retrieve data directly from the GIOŚ API.
-
-Air quality data is updated in advance by a separate process and stored in the local database.
-
-As a result, API responses do not need to wait for external GIOŚ requests.
-
-The forecast for a selected station contains both PM10 and PM2.5 values.
-
-However, both parameters are processed and predicted independently.
-
-
-### GET /stations
-
-Returns the list of stations available in the application.
-
-Method:
-
-`GET`
-
-Parameters:
-
-None.
-
-Example request:
-
-`GET /stations`
-
-Example response:
-
-```json
-[
-  {
-    "id": 814,
-    "name": "Katowice, ul. Kossutha",
-    "city": "Katowice",
-    "latitude": 50.2649,
-    "longitude": 19.0238
-  },
-  {
-    "id": 400,
-    "name": "Kraków",
-    "city": "Kraków",
-    "latitude": 50.0647,
-    "longitude": 19.945
-  }
-]
-```
-
-The endpoint returns stations for which measurement data is available in the local database.
-
-
-### GET /stations/{station_id}/measurements
-
-Returns air quality measurements for the selected station.
-
-Method:
-
-`GET`
-
-Path parameters:
-
-- `station_id` – station identifier.
-
-Query parameters:
-
-- `param` – `PM10` or `PM25`,
-- `date_from` – optional start of the time range,
-- `date_to` – optional end of the time range.
-
-Example request:
-
-`GET /stations/117/measurements?param=PM10`
-
-The endpoint can be used to retrieve measurement data used, among other things, to present air quality history in the dashboard.
-
-The data is read directly from the local database.
-
-
-### GET /stations/{station_id}/latest
-
-Returns the latest available PM10 and PM2.5 measurements for the selected station.
-
-Method:
-
-`GET`
-
-Path parameters:
-
-- `station_id` – station identifier.
-
-Example request:
-
-`GET /stations/117/latest`
-
-The endpoint uses only the local database.
-
-For each parameter, the latest record containing a valid measurement value is selected.
-
-Records with `value = NULL` are ignored.
-
-
-### GET /stations/{station_id}/forecast
-
-Returns the air quality forecast for the next day for the selected station.
-
-Method:
-
-`GET`
-
-Path parameters:
-
-- `station_id` – station identifier.
-
-Query parameters:
-
-None.
-
-Example request:
-
-`GET /stations/117/forecast`
-
-Example response:
-
-```json
-{
-  "station_id": 117,
-  "forecast_date": "2026-09-18",
-  "pm10": {
-    "sensor_id": 1234,
-    "forecast_value": 41.2,
-    "threshold": 50.0,
-    "alarm": false,
-    "data_date": "2026-09-17",
-    "data_age_days": 0,
-    "data_status": "fresh",
-    "warning": null
-  },
-  "pm25": {
-    "sensor_id": 5678,
-    "forecast_value": 18.7,
-    "threshold": 25.0,
-    "alarm": false,
-    "data_date": "2026-09-17",
-    "data_age_days": 0,
-    "data_status": "fresh",
-    "warning": null
-  }
-}
-```
-
-PM10 and PM2.5 are predicted independently.
-
-When generating a forecast, the system does not retrieve new data from GIOŚ.
-
-For each parameter, the system:
-
-1. reads the latest available measurement from the local database,
-2. determines the sensor from which the latest measurement originates,
-3. checks the freshness of the input data,
-4. retrieves the last 7 daily aggregates,
-5. retrieves the weather forecast for the next day from Open-Meteo,
-6. builds the model input features,
-7. performs the prediction,
-8. checks the alert threshold,
-9. returns the forecast together with information about data freshness.
-
-For each parameter, the response contains:
-
-- `sensor_id` – identifier of the sensor from which the latest data originates,
-- `forecast_value` – predicted concentration,
-- `threshold` – threshold used by the system to set the alert flag,
-- `alarm` – information about whether the threshold has been exceeded,
-- `data_date` – date of the latest PM input data,
-- `data_age_days` – age of the data in days,
-- `data_status` – freshness status of the data,
-- `warning` – warning displayed when older data is used.
-
-The data receives the status:
-
-`fresh`
-
-if its age is no more than 2 days.
-
-If the latest available data is more than 2 days old, the forecast can still be generated, but it receives the status:
-
-`stale`
-
-together with an appropriate warning in the `warning` field.
-
-This allows the system to use data already available in the database while also informing the user about its freshness.
-
-
-## 4. Data Flow
-
-The system uses three main data flows:
-
-1. historical data flow – used to prepare data and train the model,
-2. current data update flow – used to regularly retrieve new measurements from GIOŚ,
-3. forecast flow – used to generate forecasts for the user.
-
-
-### 4.1. Historical Data Flow
-
-```text
-GIOŚ – archival PM data
+    list of stations from the database
             │
             ▼
-        Parquet files
+    PM10 / PM2.5 sensors
             │
             ▼
-       measurements
+       GIOŚ current
+            │
+            ▼
+    comparison with the latest measurement
+            │
+       ┌────┴────┐
+       │         │
+    no gap     older gap
+       │         │
+       │         ▼
+       │     GIOŚ archive
+       │         │
+       └────┬────┘
+            ▼
+      measurements
             │
             ▼
     daily_measurements
-            │
-            ▼
-      historical features
-      ├── PM lag 1d
-      ├── PM mean 3d
-      ├── PM mean 7d
-      ├── month
-      ├── day of week
-      ├── weekend
-      └── heating season
-            │
-            │
-            ├───────────────┐
-            │               │
-            ▼               ▼
-           PM        Open-Meteo archive
-                            │
-                            ▼
-                       weather data
-                       ├── temperature
-                       ├── wind
-                       └── humidity
-            │               │
-            └───────┬───────┘
-                    ▼
-                 features
-                    │
-                    ▼
-                 ML model
-                    │
-                    ▼
-             model_v2.joblib
-```
 
-Historical data is used for model training and evaluation.
+During a standard refresh, the current-data endpoint from GIOŚ is used.
 
-PM10 and PM2.5 remain separate observations during preparation of the training dataset.
+The system fetches up to 100 records in a single request.
+
+Only records newer than the latest valid measurement are saved to the database.
+
+If the gap is older than the range available from the current-data endpoint, the archival endpoint is used.
+
+HTTP connections use a shared `httpx.Client`, which allows connections to be reused.
+
+After new data is saved, daily aggregates are recalculated for sensors that received new measurements.
 
 
-### 4.2. Current Data Update Flow
+## 5. Refresh Metrics
 
-Data updates have been separated from the dashboard and the forecast process.
+The updater records diagnostic information:
+- number of HTTP requests,
+- number of retries,
+- number of current and archival requests,
+- number of fetched records,
+- number of new records,
+- communication time with GIOŚ,
+- database write time,
+- aggregation time,
+- total execution time.
 
-A separate process is responsible for downloading new data:
+Example measurement for 16 stations:
 
-`refresh_all.py`
+| Metric | Result |
+|---|---:|
+| Total time | 10.86 s |
+| HTTP requests | 49 |
+| Current-data requests | 43 |
+| Archival requests | 6 |
+| Fetched records | 1592 |
+| New records | 6 |
+| Current-data request time | 4.61 s |
+| Archival request time | 3.13 s |
+| Database write time | < 0.01 s |
+| Aggregation time | 0.06 s |
 
-The process updates all stations used in Smogcast.
-
-```text
-               refresh_all.py
-                     │
-                     ▼
-          station list from database
-                     │
-                     ▼
-             PM10/PM2.5 sensors
-                     │
-                     ▼
-                GIOŚ current
-                     │
-                     ▼
-             latest measurements
-                     │
-                     ▼
-      comparison with latest timestamp
-                     │
-              ┌──────┴──────┐
-              │             │
-              │ no old gap  │ older gap
-              │             │
-              ▼             ▼
-        save new data    GIOŚ archive
-          records            │
-              │              ▼
-              │        fill missing data
-              │              │
-              └───────┬──────┘
-                      ▼
-                 measurements
-                      │
-                      ▼
-             daily_measurements
-                      │
-                      ▼
-            local SQLite database
-```
-
-During a standard update, the current GIOŚ data endpoint is used.
-
-The system retrieves up to 100 records in a single request.
-
-Only records newer than the latest valid measurement stored for the given sensor are saved to the database.
-
-If the latest measurement in the database is older than the range covered by the current GIOŚ endpoint, missing data is supplemented using the archival endpoint.
-
-After new measurements are stored, daily aggregates are recalculated for sensors for which new data has appeared.
-
-The update process is not executed while loading the dashboard or while calling the forecast endpoint.
-
-As a result, the user does not need to wait for GIOŚ requests to complete.
-
-During testing, the update process for all 16 stations took approximately:
-
-`17.53 s`
-
-and completed without errors.
+The largest share of the total execution time is spent on communication with the GIOŚ API.
 
 
-### 4.3. Current Forecast Flow
+## 6. API
 
-The user selects a station in the dashboard.
+The dashboard communicates only with FastAPI.
 
-The system then uses data that has already been stored in the local database.
+### GET /stations
 
-```text
-                   User
-                     │
-                     ▼
-             select one station
-                     │
-                     ▼
-                  FastAPI
-                     │
-                     ▼
-              local database
-                     │
-             ┌───────┴───────┐
-             │               │
-             ▼               ▼
-           PM10            PM2.5
-             │               │
-             ▼               ▼
-      daily_measurements  daily_measurements
-             │               │
-             ▼               ▼
-        PM10 features     PM2.5 features
-             │               │
-             └───────┬───────┘
-                     │
-                     │
-           Open-Meteo forecast
-                     │
-                     ▼
-       temperature / wind / humidity
-                     │
-             ┌───────┴───────┐
-             ▼               ▼
-         PM10 model       PM2.5 model
-             │               │
-             ▼               ▼
-       PM10 forecast     PM2.5 forecast
-             │               │
-             ▼               ▼
-           alert             alert
-             │               │
-             ▼               ▼
-        fresh / stale    fresh / stale
-             │               │
-             └───────┬───────┘
-                     ▼
-                API response
-                     │
-                     ▼
-                  dashboard
-```
+Returns stations available in the application.
 
-PM10 and PM2.5 are predicted independently.
+### GET /stations/{station_id}/measurements
 
-The forecast process does not refresh GIOŚ data.
+Returns measurement history for the selected parameter.
 
-PM data is read exclusively from the local database.
+Supported parameters:
+- `param`,
+- `date_from`,
+- `date_to`.
 
-For each parameter, the system uses the last 7 daily aggregates to calculate:
+The dashboard fetches only the selected history range instead of the entire available history.
 
-- previous-day value,
-- 3-day mean,
-- 7-day mean.
+### GET /stations/{station_id}/latest
 
-The following features are also used:
+Returns the latest valid PM10 and PM2.5 measurements.
 
+Records with `value = NULL` are skipped.
+
+### GET /stations/{station_id}/forecast
+
+Returns the PM10 and PM2.5 forecast for the next day.
+
+This endpoint does not refresh data from GIOŚ.
+
+
+## 7. Forecast
+
+For each parameter, the system:
+
+1. retrieves the latest valid measurement,
+2. checks data freshness,
+3. retrieves the 7 most recent valid daily aggregates,
+4. retrieves the weather forecast for the next day,
+5. builds input features,
+6. performs the prediction,
+7. checks the alarm threshold.
+
+The model uses:
+- PM value from the previous day,
+- 3-day PM average,
+- 7-day PM average,
 - month,
-- day of week,
+- day of the week,
 - weekend indicator,
 - heating season indicator,
 - temperature,
 - wind speed,
 - humidity.
 
-The Open-Meteo weather forecast is retrieved for the next day and is used only as model input.
+PM10 and PM2.5 are forecast independently.
 
-The model is loaded from:
+If `mean_value = NULL` appears in the daily aggregates, that record is skipped.
 
-`models/model_v2.joblib`
+Seven valid daily values are required to generate a forecast.
 
-and cached in application memory, so it does not need to be loaded again for every forecast request.
 
-The system also determines the freshness of the input data for each parameter.
+## 8. Data Freshness
 
-If the latest data is no more than 2 days old, it receives the status:
+If the latest measurement is no more than 2 days old, the data receives the status:
 
 `fresh`
 
-If the data is older than 2 days:
+If the data is older, it receives the status:
 
 `stale`
 
-and the user receives an additional warning.
-
-The user receives one response for the selected station containing:
-
-- PM10 forecast,
-- PM10 sensor identifier,
-- PM10 alert flag,
-- PM10 data freshness information,
-- PM2.5 forecast,
-- PM2.5 sensor identifier,
-- PM2.5 alert flag,
-- PM2.5 data freshness information.
+The forecast can still be generated, but the user receives a warning that older data was used.
 
 
-### 4.4. Dashboard Data Flow
+## 9. Model and Cache
 
-The dashboard communicates only with the application API.
+The model is stored in:
 
-It does not send requests directly to GIOŚ.
+`models/model_v2.joblib`
 
-```text
-                SQLite
-                   │
-                   ▼
-                FastAPI
-                   │
-                   ▼
-               Streamlit
-                   │
-        ┌──────────┼──────────┐
-        ▼          ▼          ▼
-       map     measurements  history
-                               │
-                               ▼
-                            forecast
-```
+The model is kept in application memory so it does not have to be loaded again for every forecast request.
 
-The dashboard allows the user to:
+The system checks the modification time of the model file.
 
-- display a map of available stations,
-- switch between PM10 and PM2.5 map views,
+If the file changes after retraining, the new version is automatically loaded during the next forecast request.
+
+If the file has not changed, the model is retrieved from cache.
+
+This mechanism is covered by a test.
+
+
+## 10. Dashboard
+
+The Streamlit dashboard allows the user to:
+- display a map of stations,
+- switch between PM10 and PM2.5,
+- select a station,
 - view the latest measurements,
-- view the timestamp of the latest measurement,
-- select a specific station,
 - view the forecast for the next day,
 - view measurement history.
 
-Values displayed in the dashboard are also colour-coded according to their level relative to the threshold:
+History can be displayed for:
+- 7 days,
+- 30 days,
+- 90 days,
+- 1 year.
 
-- green – value clearly below the threshold,
+Values are marked with colors:
+- green – level below the threshold,
 - yellow – value close to the threshold,
 - red – threshold exceeded.
 
-The dashboard also contains permanently visible information about the data sources:
+The dashboard also includes:
+- a fixed header bar,
+- the SmogCast logo,
+- an application icon in the browser tab,
+- information about data sources.
 
-- Chief Inspectorate of Environmental Protection (GIOŚ) – air quality data,
+Data sources:
+- GIOŚ – air quality data,
 - Open-Meteo – weather data.
+

@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta, timezone
+from time import perf_counter
 
 import httpx
 from sqlalchemy import select
@@ -148,8 +149,19 @@ def find_best_current_sensor(
     best_measurements = []
     best_timestamp = None
 
+    gios_time = 0.0
+    current_calls = 0
+    fetched_records = 0
+
     for sensor in sensors:
+        start = perf_counter()
+
         measurements = try_get_current_sensor_data(sensor.id)
+
+        gios_time += perf_counter() - start
+
+        current_calls += 1
+        fetched_records += len(measurements)
 
         if not measurements:
             continue
@@ -167,6 +179,11 @@ def find_best_current_sensor(
     return (
         best_sensor,
         best_measurements,
+        {
+            "gios_time": gios_time,
+            "current_calls": current_calls,
+            "fetched_records": fetched_records,
+        },
     )
 
 
@@ -201,6 +218,8 @@ def refresh_archive_part(
     date_from,
     date_to,
 ):
+    start = perf_counter()
+
     (
         measurements,
         failed_ranges,
@@ -211,11 +230,21 @@ def refresh_archive_part(
         days_per_range=30,
     )
 
+    gios_time = perf_counter() - start
+
     if failed_ranges:
-        raise RuntimeError(f"Failed archival ranges: {failed_ranges}")
+        raise RuntimeError(
+            f"Nie udało się pobrać zakresów archiwalnych: {failed_ranges}"
+        )
 
     if not measurements:
-        return
+        return {
+            "gios_time": gios_time,
+            "db_write_time": 0.0,
+            "fetched_records": 0,
+            "new_records": 0,
+            "archive_used": True,
+        }
 
     prepared = prepare_measurements_for_database(
         sensor_id=sensor_id,
@@ -223,12 +252,30 @@ def refresh_archive_part(
     )
 
     if not prepared:
-        return
+        return {
+            "gios_time": gios_time,
+            "db_write_time": 0.0,
+            "fetched_records": len(measurements),
+            "new_records": 0,
+            "archive_used": True,
+        }
+
+    write_start = perf_counter()
 
     upsert_measurements(
         db,
         prepared,
     )
+
+    db_write_time = perf_counter() - write_start
+
+    return {
+        "gios_time": gios_time,
+        "db_write_time": db_write_time,
+        "fetched_records": len(measurements),
+        "new_records": len(prepared),
+        "archive_used": True,
+    }
 
 
 # Zapisuje tylko nowe bieżące pomiary.
@@ -239,7 +286,10 @@ def save_current_measurements(
     latest_timestamp,
 ):
     if not measurements:
-        return 0
+        return {
+            "new_records": 0,
+            "db_write_time": 0.0,
+        }
 
     prepared = prepare_measurements_for_database(
         sensor_id=sensor_id,
@@ -254,14 +304,24 @@ def save_current_measurements(
         ]
 
     if not prepared:
-        return 0
+        return {
+            "new_records": 0,
+            "db_write_time": 0.0,
+        }
+
+    start = perf_counter()
 
     upsert_measurements(
         db,
         prepared,
     )
 
-    return len(prepared)
+    db_write_time = perf_counter() - start
+
+    return {
+        "new_records": len(prepared),
+        "db_write_time": db_write_time,
+    }
 
 
 # Określa świeżość danych.
@@ -283,9 +343,9 @@ def get_data_freshness(
         "data_age_days": data_age_days,
         "data_status": "stale",
         "warning": (
-            "Forecast is based on older PM data. "
-            f"Latest available measurement is from "
-            f"{latest_date}."
+            "Prognoza jest oparta na starszych danych PM. "
+            "Najnowszy dostępny pomiar pochodzi z "
+            f"{latest_date.strftime('%d.%m.%Y')}."
         ),
     }
 
@@ -306,12 +366,13 @@ def refresh_recent_measurements(
         )
 
         if not sensors:
-            raise ValueError("No sensor found for station and parameter")
+            raise ValueError("Nie znaleziono sensora dla wybranej stacji i parametru")
 
         # Szuka sensora z najświeższymi danymi.
         (
             current_sensor,
             current_measurements,
+            current_metrics,
         ) = find_best_current_sensor(sensors)
 
         if current_sensor is not None:
@@ -326,7 +387,7 @@ def refresh_recent_measurements(
             current_measurements = []
 
         if sensor is None:
-            raise ValueError("No measurements available for station and parameter")
+            raise ValueError("Brak dostępnych pomiarów dla wybranej stacji i parametru")
 
         latest_timestamp = get_latest_measurement_timestamp(
             db,
@@ -334,7 +395,7 @@ def refresh_recent_measurements(
         )
 
         if latest_timestamp is None:
-            raise ValueError("No historical measurements available")
+            raise ValueError("Brak historycznych pomiarów dla wybranego sensora")
 
         latest_date = latest_timestamp.date()
 
@@ -346,11 +407,19 @@ def refresh_recent_measurements(
 
         archive_end_date = current_start_date - timedelta(days=1)
 
+        archive_metrics = {
+            "gios_time": 0.0,
+            "db_write_time": 0.0,
+            "fetched_records": 0,
+            "new_records": 0,
+            "archive_used": False,
+        }
+
         # Uzupełnia starszą lukę.
         if latest_date < archive_end_date:
             archive_start_date = latest_date + timedelta(days=1)
 
-            refresh_archive_part(
+            archive_metrics = refresh_archive_part(
                 db=db,
                 sensor_id=sensor.id,
                 date_from=archive_start_date,
@@ -364,7 +433,7 @@ def refresh_recent_measurements(
         )
 
         # Dopisuje tylko nowsze rekordy.
-        new_records = save_current_measurements(
+        current_save = save_current_measurements(
             db=db,
             sensor_id=sensor.id,
             measurements=current_measurements,
@@ -377,13 +446,30 @@ def refresh_recent_measurements(
         )
 
         if refreshed_timestamp is None:
-            raise RuntimeError("No measurements available after refresh")
+            raise RuntimeError("Brak pomiarów po zakończeniu odświeżania danych")
 
         freshness = get_data_freshness(refreshed_timestamp.date())
 
+        total_new_records = archive_metrics["new_records"] + current_save["new_records"]
+
+        total_fetched_records = (
+            current_metrics["fetched_records"] + archive_metrics["fetched_records"]
+        )
+
+        total_gios_time = current_metrics["gios_time"] + archive_metrics["gios_time"]
+
+        total_db_write_time = (
+            archive_metrics["db_write_time"] + current_save["db_write_time"]
+        )
+
         return {
             "sensor_id": sensor.id,
-            "new_records": new_records,
+            "new_records": total_new_records,
+            "fetched_records": total_fetched_records,
+            "current_calls": current_metrics["current_calls"],
+            "archive_used": archive_metrics["archive_used"],
+            "gios_time": total_gios_time,
+            "db_write_time": total_db_write_time,
             "data_date": freshness["data_date"],
             "data_age_days": freshness["data_age_days"],
             "data_status": freshness["data_status"],
