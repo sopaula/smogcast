@@ -37,10 +37,23 @@ def map_param(
     return param
 
 
-# Wczytuje model i przechowuje go w pamięci.
+# Wczytuje konkretną wersję modelu.
 @lru_cache(maxsize=1)
+def _load_model_bundle(
+    model_path,
+    modified_time,
+):
+    return joblib.load(model_path)
+
+
+# Wczytuje najnowszą wersję modelu.
 def load_model_bundle():
-    return joblib.load(MODEL_PATH)
+    modified_time = MODEL_PATH.stat().st_mtime_ns
+
+    return _load_model_bundle(
+        str(MODEL_PATH),
+        modified_time,
+    )
 
 
 # Pobiera stację z bazy.
@@ -100,7 +113,7 @@ def get_latest_sensor_data(
     }
 
 
-# Pobiera 7 ostatnich wartości dobowych.
+# Pobiera 7 ostatnich poprawnych wartości dobowych.
 def get_recent_measurements(
     db,
     station_id,
@@ -111,6 +124,7 @@ def get_recent_measurements(
         .where(
             DailyMeasurement.station_id == station_id,
             DailyMeasurement.param_code == param_code,
+            DailyMeasurement.mean_value.is_not(None),
         )
         .order_by(DailyMeasurement.date.desc())
         .limit(7)
@@ -124,10 +138,14 @@ def build_forecast_features(
     measurements,
     weather,
 ):
-    if len(measurements) < 7:
-        raise ValueError("Not enough historical measurements")
+    values = [
+        measurement.mean_value
+        for measurement in measurements
+        if measurement.mean_value is not None
+    ]
 
-    values = [measurement.mean_value for measurement in measurements]
+    if len(values) < 7:
+        raise ValueError("Not enough valid historical measurements")
 
     tomorrow = date.today() + timedelta(days=1)
 
