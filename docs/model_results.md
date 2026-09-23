@@ -1,3 +1,5 @@
+# Model v2
+
 ## Baseline Results
 
 A temporal split was used to evaluate the baseline models.
@@ -257,3 +259,44 @@ This means that historical observed weather for the target day is used during tr
 In a real forecasting scenario, the true weather for the target day would not yet be known. A weather forecast available before the target day would need to be used instead.
 
 This should be treated as a deployment limitation and reviewed carefully for potential leakage.
+
+
+# Model v3 – Coverage Features
+
+A third model version was trained with additional features describing daily measurement coverage.
+
+The following features were added:
+
+- `coverage_lag_1d`
+- `coverage_mean_3d`
+- `coverage_mean_7d`
+
+These features describe how complete the historical daily PM aggregates were and allow the model to distinguish between, for example, a daily mean calculated from 24 valid measurements and one calculated from only a few observations.
+
+### Model v3 Results
+
+| Model | MAE | RMSE |
+|---|---:|---:|
+| Linear Regression | 5.752 | 8.532 |
+| Random Forest | 5.617 | 8.890 |
+
+Random Forest again achieved the lowest MAE and was selected by the existing model-selection logic.
+
+### Comparison with Model v2
+
+| Model | Version | MAE | RMSE |
+|---|---|---:|---:|
+| Linear Regression | v2 | 5.693 | 8.468 |
+| Linear Regression | v3 | 5.752 | 8.532 |
+| Random Forest | v2 | 5.599 | 8.843 |
+| Random Forest | v3 | 5.617 | 8.890 |
+
+Adding coverage features did not improve the evaluation metrics in this experiment.
+
+Both Linear Regression and Random Forest performed slightly worse than in model v2.
+
+This suggests that, in the current dataset and feature configuration, daily measurement coverage does not provide enough additional predictive information to improve overall forecast accuracy.
+
+However, coverage remains useful as a data-quality indicator and is retained in the aggregated daily measurements.
+
+Model v3 is kept as an experimental version for comparison, while model v2 remains the stronger version based on the current evaluation metrics.

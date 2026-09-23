@@ -1,4 +1,4 @@
-from datetime import timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -6,7 +6,7 @@ from smogcast.storage.db import SessionLocal
 from smogcast.storage.upsert import upsert_measurements, upsert_weather
 
 
-CET = timezone(timedelta(hours=1))
+WARSAW = ZoneInfo("Europe/Warsaw")
 
 GIOS_PATH = "data/raw/gios_pm_measurements_3y.parquet"
 WEATHER_PATH = "data/raw/open_meteo_weather_3y.parquet"
@@ -17,8 +17,14 @@ def load_measurements():
     df = pd.read_parquet(GIOS_PATH)
 
     timestamps = pd.to_datetime(df["Data"])
-    timestamps_cet = timestamps.dt.tz_localize(CET)
-    timestamps_utc = timestamps_cet.dt.tz_convert("UTC")
+
+    timestamps_local = timestamps.dt.tz_localize(
+        WARSAW,
+        ambiguous="NaT",
+        nonexistent="shift_forward",
+    )
+
+    timestamps_utc = timestamps_local.dt.tz_convert("UTC")
 
     records = []
 
@@ -28,6 +34,9 @@ def load_measurements():
         df["Wartość"],
         strict=True,
     ):
+        if pd.isna(timestamp):
+            continue
+
         records.append(
             {
                 "sensor_id": int(sensor_id),
@@ -64,7 +73,7 @@ def load_weather():
                 "wind_ms": (
                     None
                     if pd.isna(row["wind_speed_10m"])
-                    else float(row["wind_speed_10m"]) / 3.6  # km/h -> m/s
+                    else float(row["wind_speed_10m"]) / 3.6
                 ),
                 "humidity": (
                     None
@@ -93,10 +102,16 @@ def ingest_timeseries():
 
     try:
         print("Saving measurements...")
-        upsert_measurements(db, measurements)
+        upsert_measurements(
+            db,
+            measurements,
+        )
 
         print("Saving weather...")
-        upsert_weather(db, weather)
+        upsert_weather(
+            db,
+            weather,
+        )
 
     finally:
         db.close()

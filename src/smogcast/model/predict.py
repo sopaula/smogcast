@@ -138,14 +138,18 @@ def build_forecast_features(
     measurements,
     weather,
 ):
-    values = [
-        measurement.mean_value
+    valid_measurements = [
+        measurement
         for measurement in measurements
         if measurement.mean_value is not None
     ]
 
-    if len(values) < 7:
+    if len(valid_measurements) < 7:
         raise ValueError("Not enough valid historical measurements")
+
+    values = [measurement.mean_value for measurement in valid_measurements]
+
+    coverages = [measurement.coverage for measurement in valid_measurements]
 
     tomorrow = date.today() + timedelta(days=1)
 
@@ -153,6 +157,9 @@ def build_forecast_features(
         "pm_lag_1d": values[0],
         "pm_mean_3d": sum(values[:3]) / 3,
         "pm_mean_7d": sum(values[:7]) / 7,
+        "coverage_lag_1d": coverages[0],
+        "coverage_mean_3d": sum(coverages[:3]) / 3,
+        "coverage_mean_7d": sum(coverages[:7]) / 7,
         "month": tomorrow.month,
         "day_of_week": tomorrow.weekday(),
         "is_weekend": int(tomorrow.weekday() >= 5),

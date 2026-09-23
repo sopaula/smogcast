@@ -101,6 +101,8 @@ def build_features(
 
     groups = data.groupby(["station_id", "param_code"])["mean_value"]
 
+    coverage_groups = data.groupby(["station_id", "param_code"])["coverage"]
+
     # PM z poprzedniego dnia.
     data["pm_lag_1d"] = groups.shift(1)
 
@@ -111,6 +113,19 @@ def build_features(
 
     # Średnia z 7 poprzednich dni.
     data["pm_mean_7d"] = groups.transform(
+        lambda values: values.shift(1).rolling(7).mean()
+    )
+
+    # Pokrycie danych z poprzedniego dnia.
+    data["coverage_lag_1d"] = coverage_groups.shift(1)
+
+    # Średnie pokrycie z 3 poprzednich dni.
+    data["coverage_mean_3d"] = coverage_groups.transform(
+        lambda values: values.shift(1).rolling(3).mean()
+    )
+
+    # Średnie pokrycie z 7 poprzednich dni.
+    data["coverage_mean_7d"] = coverage_groups.transform(
         lambda values: values.shift(1).rolling(7).mean()
     )
 
