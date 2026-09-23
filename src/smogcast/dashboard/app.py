@@ -228,6 +228,26 @@ def format_date(
     return formatted_date.strftime("%d.%m.%Y")
 
 
+# Zamienia techniczną nazwę parametru na nazwę wyświetlaną.
+def display_param_name(
+    param,
+):
+    if param == "PM25":
+        return "PM2.5"
+
+    return param
+
+
+# Zamienia nazwę wyświetlaną na format używany przez backend.
+def backend_param_name(
+    param,
+):
+    if param == "PM2.5":
+        return "PM25"
+
+    return param
+
+
 # API
 
 
@@ -390,11 +410,12 @@ def show_measurement_card(
     )
 
     threshold = THRESHOLDS[param]
+    display_param = display_param_name(param)
 
     st.markdown(
         f"""
 <div class="measurement-card {status["class"]}">
-    <div class="card-param">{param}</div>
+    <div class="card-param">{display_param}</div>
     <div class="card-value">
         {value:.2f} µg/m³
     </div>
@@ -425,11 +446,12 @@ def show_forecast_card(
     )
 
     threshold = forecast["threshold"]
+    display_param = display_param_name(param)
 
     st.markdown(
         f"""
 <div class="measurement-card {status["class"]}">
-    <div class="card-param">{param}</div>
+    <div class="card-param">{display_param}</div>
     <div class="card-value">
         {value:.2f} µg/m³
     </div>
@@ -557,14 +579,16 @@ st.markdown(
 )
 
 
-map_param = st.radio(
+map_param_display = st.radio(
     "Wyświetlany parametr",
     [
         "PM10",
-        "PM25",
+        "PM2.5",
     ],
     horizontal=True,
 )
+
+map_param = backend_param_name(map_param_display)
 
 
 map_data = prepare_map_data(
@@ -596,7 +620,7 @@ if map_data:
         "html": (
             "<b>{city}</b><br/>"
             "{name}<br/><br/>"
-            f"{map_param}: "
+            f"{map_param_display}: "
             "<b>{value} µg/m³</b><br/>"
             "Pomiar: {timestamp}"
         )
@@ -761,15 +785,17 @@ st.markdown(
 )
 
 
-history_param = st.radio(
+history_param_display = st.radio(
     "Wyświetlany parametr",
     [
         "PM10",
-        "PM25",
+        "PM2.5",
     ],
     horizontal=True,
     key="history_param",
 )
+
+history_param = backend_param_name(history_param_display)
 
 
 history_range = st.selectbox(
@@ -811,7 +837,7 @@ if history:
 
     history_df = history_df.sort_values("timestamp")
 
-    chart_name = "PM2.5" if history_param == "PM25" else "PM10"
+    chart_name = history_param_display
 
     polish_months = {
         1: "Sty",

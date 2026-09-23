@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from time import perf_counter
 
 import httpx
@@ -66,12 +67,10 @@ def prepare_measurements_for_database(
     measurements,
 ):
     prepared = []
-
-    cet = timezone(timedelta(hours=1))
+    warsaw = ZoneInfo("Europe/Warsaw")
 
     for measurement in measurements:
         timestamp_text = measurement.get("Data")
-
         value = measurement.get("Wartość")
 
         if timestamp_text is None:
@@ -81,10 +80,8 @@ def prepare_measurements_for_database(
             continue
 
         timestamp = datetime.fromisoformat(timestamp_text)
-
-        timestamp_cet = timestamp.replace(tzinfo=cet)
-
-        timestamp_utc = timestamp_cet.astimezone(timezone.utc)
+        timestamp_local = timestamp.replace(tzinfo=warsaw)
+        timestamp_utc = timestamp_local.astimezone(timezone.utc)
 
         prepared.append(
             {
@@ -414,6 +411,13 @@ def refresh_recent_measurements(
             "new_records": 0,
             "archive_used": False,
         }
+
+        print(
+            f"Sensor {sensor.id}: "
+            f"ostatni={latest_date}, "
+            f"granica_archive={archive_end_date}, "
+            f"archive={latest_date < archive_end_date}"
+        )
 
         # Uzupełnia starszą lukę.
         if latest_date < archive_end_date:
