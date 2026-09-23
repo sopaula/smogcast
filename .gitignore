@@ -27,3 +27,4 @@ data/
 
 # Trained model artifacts
 models/*.joblib
+notebooks/
