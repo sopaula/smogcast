@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
 from smogcast.storage.models import Base
@@ -11,6 +11,17 @@ DATABASE_URL = "sqlite:///smogcast.db"
 engine = create_engine(
     DATABASE_URL,
 )
+
+
+# Ustawia stabilniejszą pracę SQLite przy wielu procesach.
+@event.listens_for(engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+
+    cursor.execute("PRAGMA journal_mode=WAL;")
+    cursor.execute("PRAGMA busy_timeout=5000;")
+
+    cursor.close()
 
 
 # Fabryka sesji używanych do komunikacji z bazą danych.

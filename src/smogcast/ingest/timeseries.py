@@ -88,33 +88,48 @@ def load_weather():
     return records
 
 
-# Zapisuje przygotowane pomiary i dane pogodowe do bazy danych.
-def ingest_timeseries():
+# Zapisuje historyczne pomiary PM do bazy.
+def ingest_measurements():
     print("Preparing measurements...")
+
     measurements = load_measurements()
+
     print(f"Measurements prepared: {len(measurements)}")
 
-    print("Preparing weather...")
-    weather = load_weather()
-    print(f"Weather records prepared: {len(weather)}")
-
-    db = SessionLocal()
-
-    try:
+    with SessionLocal() as db:
         print("Saving measurements...")
+
         upsert_measurements(
             db,
             measurements,
         )
 
+    print("Measurements ingest finished.")
+
+
+# Zapisuje historyczne dane pogodowe do bazy.
+def ingest_weather():
+    print("Preparing weather...")
+
+    weather = load_weather()
+
+    print(f"Weather records prepared: {len(weather)}")
+
+    with SessionLocal() as db:
         print("Saving weather...")
+
         upsert_weather(
             db,
             weather,
         )
 
-    finally:
-        db.close()
+    print("Weather ingest finished.")
+
+
+# Importuje wszystkie historyczne dane.
+def ingest_timeseries():
+    ingest_measurements()
+    ingest_weather()
 
     print("Timeseries ingest finished.")
 

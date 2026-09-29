@@ -239,3 +239,18 @@ class Prediction(Base):
         DateTime(timezone=True),
         nullable=False,
     )
+
+
+# Zapisuje ukończone etapy inicjalizacji bazy.
+class InitializationState(Base):
+    __tablename__ = "initialization_state"
+
+    step: Mapped[str] = mapped_column(
+        String,
+        primary_key=True,
+    )
+
+    completed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
