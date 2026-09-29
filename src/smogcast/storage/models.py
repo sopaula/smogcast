@@ -63,6 +63,22 @@ class Sensor(Base):
         nullable=False,
     )
 
+    status: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+        default="active",
+    )
+
+    last_backfill_attempt: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    next_retry_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
 
 # Surowe pomiary PM10 i PM2.5.
 class Measurement(Base):

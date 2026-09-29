@@ -26,13 +26,7 @@ class MeasurementResponse(BaseModel):
     value: float | None
 
 
-# Prognoza dla jednego parametru PM
-#
-# Zawiera:
-# - prognozowaną wartość
-# - próg alarmowy
-# - flagę alarmu
-# - informację o świeżości danych
+# Prognoza dla jednego parametru PM.
 class PollutantForecastResponse(BaseModel):
     sensor_id: int
     forecast_value: float
@@ -42,13 +36,12 @@ class PollutantForecastResponse(BaseModel):
     data_age_days: int
     data_status: str
     warning: str | None
+    coverage_7d: float
+    coverage_status: str
+    coverage_warning: str | None
 
 
-# Odpowiedź endpointu prognozy
-# dla jednej stacji
-#
-# PM10 i PM2.5 są liczone osobno,
-# ale zwracane razem
+# Odpowiedź endpointu prognozy dla jednej stacji.
 class ForecastResponse(BaseModel):
     station_id: int
     forecast_date: date
