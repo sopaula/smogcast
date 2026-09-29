@@ -2,27 +2,6 @@ import subprocess
 import sys
 import time
 
-from sqlalchemy import inspect
-
-from smogcast.storage.db import engine
-
-
-# Sprawdza, czy baza została już zainicjalizowana.
-def database_is_initialized():
-    inspector = inspect(engine)
-
-    required_tables = {
-        "stations",
-        "sensors",
-        "measurements",
-        "weather",
-        "daily_measurements",
-    }
-
-    existing_tables = set(inspector.get_table_names())
-
-    return required_tables.issubset(existing_tables)
-
 
 # Uruchamia pojedynczy skrypt i czeka na zakończenie.
 def run_script(path):
@@ -38,16 +17,10 @@ def run_script(path):
 def main():
     print("Starting SmogCast...")
 
-    # Przygotowuje bazę przy pierwszym uruchomieniu.
-    if not database_is_initialized():
-        print("\nDatabase is not initialized.")
-        print("Running initial database setup...")
+    # Przygotowuje bazę lub wznawia przerwaną inicjalizację.
+    print("\nChecking database initialization...")
 
-        run_script("scripts/init_db.py")
-
-    else:
-        print("\nDatabase already initialized.")
-        print("Skipping initial setup.")
+    run_script("scripts/init_db.py")
 
     # Aktualizuje dane przed uruchomieniem aplikacji.
     print("\nRefreshing data...")
