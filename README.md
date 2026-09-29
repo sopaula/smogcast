@@ -1,174 +1,160 @@
 # SmogCast
 
-SmogCast is an air quality monitoring and forecasting application using GIOŚ air quality data and Open-Meteo weather data.
+SmogCast is an air quality monitoring and forecasting application for selected stations in Poland.
 
-The project includes:
+The application combines air quality data from GIOŚ with weather data from Open-Meteo and provides current measurements, historical data and next-day PM10 and PM2.5 forecasts.
 
-- GIOŚ data ingestion,
-- Open-Meteo integration,
-- SQLite storage,
-- daily PM aggregation,
-- PM10 and PM2.5 forecasting,
-- FastAPI backend,
-- Streamlit dashboard.
+## Features
+
+- current PM10 and PM2.5 measurements,
+- historical measurement charts,
+- next-day air quality forecasts,
+- weather data integration,
+- data coverage quality warnings,
+- automatic refresh of recent measurements,
+- Streamlit dashboard,
+- FastAPI backend.
+
+## Data sources
+
+- GIOŚ – air quality measurements,
+- Open-Meteo – historical and forecast weather data.
+
+The project uses 16 selected monitoring stations in Poland.
 
 ## Requirements
 
 - Python 3.12+
-- uv
+- `uv`
 
 ## Installation
 
+Clone the repository:
+
 ```bash
-git clone <repository-url>
+git clone https://github.com/sopaula/smogcast.git
 cd smogcast
+```
+
+Install dependencies:
+
+```bash
 uv sync
 ```
 
-## Required local files
+## Running the application
 
-The first database initialization requires:
-
-```text
-data/raw/gios_pm_measurements_3y.parquet
-data/raw/open_meteo_weather_3y.parquet
-```
-
-Forecasting requires:
-
-```text
-models/model_v2.joblib
-```
-
-These files are not committed to the repository.
-
-## Run the application
-
-The easiest way to start SmogCast locally is:
+Run:
 
 ```bash
 PYTHONPATH=src uv run python scripts/run_app.py
 ```
 
-The script:
+On the first run, SmogCast automatically:
 
-1. initializes or resumes database setup,
-2. refreshes current GIOŚ data,
-3. starts FastAPI,
-4. starts the Streamlit dashboard.
+1. downloads the required historical GIOŚ and Open-Meteo data,
+2. initializes the local SQLite database,
+3. creates daily aggregates,
+4. trains the forecasting model if it does not exist,
+5. downloads the latest measurements,
+6. starts the API and dashboard.
 
-After startup:
+The first startup may take longer because historical data for the period from August 2023 to August 2026 must be downloaded and processed.
+
+On subsequent runs, existing historical files, completed initialization steps and the trained model are reused.
+
+## Application
+
+Dashboard:
 
 ```text
-API:       http://127.0.0.1:8000
-API docs:  http://127.0.0.1:8000/docs
-Dashboard: http://localhost:8501
+http://localhost:8501
 ```
 
-Stop the application with `Ctrl+C`.
+API:
 
-## Manual commands
-
-Initialize the database:
-
-```bash
-PYTHONPATH=src uv run python scripts/init_db.py
+```text
+http://127.0.0.1:8000
 ```
 
-Refresh current data:
+API documentation:
 
-```bash
-PYTHONPATH=src uv run python scripts/refresh_all.py
+```text
+http://127.0.0.1:8000/docs
 ```
 
-Start FastAPI:
+## Forecasting
 
-```bash
-PYTHONPATH=src uv run uvicorn smogcast.api.main:app --reload
+The forecasting model predicts next-day PM10 and PM2.5 concentrations using historical pollution measurements and weather data.
+
+The production model is stored locally as:
+
+```text
+models/model_v2.joblib
 ```
 
-Start Streamlit:
+If the file does not exist, it is trained automatically during the first application startup.
 
-```bash
-PYTHONPATH=src uv run streamlit run src/smogcast/dashboard/app.py
-```
-
-## Forecast
-
-The next-day forecast uses:
-
-- previous-day PM value,
-- 3-day PM mean,
-- 7-day PM mean,
-- calendar features,
-- heating season information,
-- Open-Meteo weather forecast.
-
-Model v2 is the current production model.
-
-Recent measurement coverage is used as a forecast quality indicator:
+Forecasts also include a 7-day data coverage quality indicator:
 
 - `>= 75%` – good,
 - `50–75%` – warning,
-- `< 50%` – critical warning.
+- `< 50%` – critical.
 
-## Data update
+Coverage is used as a quality indicator and is not an input feature of the production model.
 
-The updater stores current GIOŚ data in SQLite.
+## Data updates
 
-Sensors without fresh archival data are marked as `stale`. Unsuccessful archival backfill is retried at most once every 24 hours.
+Recent measurements are downloaded from GIOŚ during application startup.
+
+Sensors with incomplete archival data are marked as stale and can be retried after 24 hours.
 
 ## Database
 
-SQLite uses:
+SmogCast uses SQLite.
 
-```text
-WAL
-busy_timeout = 5000 ms
-```
+The database is configured with:
 
-This improves concurrent reads and writes between the API and updater.
+- WAL mode,
+- `busy_timeout`,
+- resumable initialization.
+
+The local database file is not stored in the repository.
 
 ## Tests
+
+Run tests:
 
 ```bash
 uv run pytest
 ```
 
-## Code quality
+Run Ruff:
 
 ```bash
 uv run ruff check .
-uv run ruff format .
 ```
 
 ## Project structure
 
 ```text
 smogcast/
-├── data/
-├── docs/
-├── models/
 ├── scripts/
+│   ├── prepare_assets.py
 │   ├── init_db.py
 │   ├── refresh_all.py
 │   └── run_app.py
 ├── src/smogcast/
-│   ├── api/
-│   ├── dashboard/
 │   ├── ingest/
-│   ├── model/
 │   ├── processing/
-│   └── storage/
+│   ├── storage/
+│   ├── model/
+│   ├── api/
+│   └── dashboard/
 ├── tests/
-├── pyproject.toml
-└── README.md
+├── docs/
+└── models/
 ```
-
-## Data sources
-
-- Główny Inspektorat Ochrony Środowiska (GIOŚ)
-- Open-Meteo
 
 ## License
 

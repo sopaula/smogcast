@@ -1,9 +1,14 @@
+from pathlib import Path
 import subprocess
 import sys
 import time
 
 
-# Uruchamia pojedynczy skrypt i czeka na zakończenie.
+GIOS_PATH = Path("data/raw/gios_pm_measurements_3y.parquet")
+WEATHER_PATH = Path("data/raw/open_meteo_weather_3y.parquet")
+MODEL_PATH = Path("models/model_v2.joblib")
+
+
 def run_script(path):
     subprocess.run(
         [
@@ -14,20 +19,36 @@ def run_script(path):
     )
 
 
+def run_module(module):
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            module,
+        ],
+        check=True,
+    )
+
+
 def main():
     print("Starting SmogCast...")
 
-    # Przygotowuje bazę lub wznawia przerwaną inicjalizację.
-    print("\nChecking database initialization...")
+    # Przygotowuje brakujące dane historyczne.
+    if not GIOS_PATH.exists() or not WEATHER_PATH.exists():
+        print("\nPreparing historical data...")
+        run_script("scripts/prepare_assets.py")
 
+    print("\nChecking database initialization...")
     run_script("scripts/init_db.py")
 
-    # Aktualizuje dane przed uruchomieniem aplikacji.
-    print("\nRefreshing data...")
+    # Trenuje model przy pierwszym uruchomieniu.
+    if not MODEL_PATH.exists():
+        print("\nTraining forecasting model...")
+        run_module("smogcast.model.train")
 
+    print("\nRefreshing data...")
     run_script("scripts/refresh_all.py")
 
-    # Uruchamia API.
     print("\nStarting FastAPI...")
 
     api_process = subprocess.Popen(
@@ -43,10 +64,8 @@ def main():
         ]
     )
 
-    # Daje API chwilę na uruchomienie.
     time.sleep(2)
 
-    # Uruchamia dashboard.
     print("\nStarting Streamlit dashboard...")
 
     dashboard_process = subprocess.Popen(
