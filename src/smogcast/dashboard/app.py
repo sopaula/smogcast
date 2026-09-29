@@ -461,6 +461,7 @@ def show_forecast_card(
     <div class="card-info">
         Próg: {threshold:.0f} µg/m³<br>
         Dane do: {format_date(forecast["data_date"])}<br>
+        Coverage 7 dni: {forecast["coverage_7d"]:.1f}%<br>
         Sensor: {forecast["sensor_id"]}
     </div>
 </div>
@@ -470,6 +471,12 @@ def show_forecast_card(
 
     if forecast["warning"]:
         st.warning(forecast["warning"])
+
+    if forecast["coverage_status"] == "warning":
+        st.warning(forecast["coverage_warning"])
+
+    if forecast["coverage_status"] == "critical":
+        st.error(forecast["coverage_warning"])
 
 
 # MAPA

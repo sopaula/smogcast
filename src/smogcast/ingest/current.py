@@ -1,6 +1,6 @@
 from datetime import date, datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
 from time import perf_counter
+from zoneinfo import ZoneInfo
 
 import httpx
 from sqlalchemy import select
@@ -17,6 +17,8 @@ from smogcast.storage.upsert import upsert_measurements
 CURRENT_DATA_DAYS = 3
 
 FRESH_DATA_DAYS = 2
+
+BACKFILL_RETRY_HOURS = 24
 
 
 # Zamienia nazwę parametru na format z bazy.
@@ -121,7 +123,6 @@ def get_latest_current_timestamp(
 
     for measurement in measurements:
         timestamp_text = measurement.get("Data")
-
         value = measurement.get("Wartość")
 
         if timestamp_text is None:
@@ -206,6 +207,20 @@ def find_best_historical_sensor(
             best_timestamp = latest_timestamp
 
     return best_sensor
+
+
+# Sprawdza, czy można ponowić próbę backfillu.
+def can_retry_backfill(sensor):
+    if sensor.next_retry_at is None:
+        return True
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    next_retry_at = sensor.next_retry_at
+
+    if next_retry_at.tzinfo is not None:
+        next_retry_at = next_retry_at.astimezone(timezone.utc).replace(tzinfo=None)
+
+    return now >= next_retry_at
 
 
 # Uzupełnia starszą lukę z archiwum GIOŚ.
@@ -412,15 +427,8 @@ def refresh_recent_measurements(
             "archive_used": False,
         }
 
-        print(
-            f"Sensor {sensor.id}: "
-            f"ostatni={latest_date}, "
-            f"granica_archive={archive_end_date}, "
-            f"archive={latest_date < archive_end_date}"
-        )
-
         # Uzupełnia starszą lukę.
-        if latest_date < archive_end_date:
+        if latest_date < archive_end_date and can_retry_backfill(sensor):
             archive_start_date = latest_date + timedelta(days=1)
 
             archive_metrics = refresh_archive_part(
@@ -429,6 +437,30 @@ def refresh_recent_measurements(
                 date_from=archive_start_date,
                 date_to=archive_end_date,
             )
+
+            attempt_time = datetime.now(timezone.utc).replace(tzinfo=None)
+
+            sensor.last_backfill_attempt = attempt_time
+
+            latest_after_backfill = get_latest_measurement_timestamp(
+                db,
+                sensor.id,
+            )
+
+            if (
+                latest_after_backfill is None
+                or latest_after_backfill.date() < archive_end_date
+            ):
+                sensor.status = "stale"
+                sensor.next_retry_at = attempt_time + timedelta(
+                    hours=BACKFILL_RETRY_HOURS
+                )
+
+            else:
+                sensor.status = "active"
+                sensor.next_retry_at = None
+
+            db.commit()
 
         # Sprawdza timestamp po uzupełnieniu archiwum.
         latest_timestamp = get_latest_measurement_timestamp(
@@ -453,6 +485,15 @@ def refresh_recent_measurements(
             raise RuntimeError("Brak pomiarów po zakończeniu odświeżania danych")
 
         freshness = get_data_freshness(refreshed_timestamp.date())
+
+        if freshness["data_status"] == "fresh":
+            sensor.status = "active"
+            sensor.next_retry_at = None
+
+        else:
+            sensor.status = "stale"
+
+        db.commit()
 
         total_new_records = archive_metrics["new_records"] + current_save["new_records"]
 

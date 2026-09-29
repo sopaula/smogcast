@@ -133,6 +133,41 @@ def get_recent_measurements(
     return list(db.scalars(stmt))
 
 
+# Określa jakość danych na podstawie coverage.
+def get_coverage_quality(
+    measurements,
+):
+    coverages = [measurement.coverage for measurement in measurements[:7]]
+
+    coverage_7d = sum(coverages) / len(coverages)
+
+    if coverage_7d >= 75:
+        return {
+            "coverage_7d": round(coverage_7d, 2),
+            "coverage_status": "good",
+            "coverage_warning": None,
+        }
+
+    if coverage_7d >= 50:
+        return {
+            "coverage_7d": round(coverage_7d, 2),
+            "coverage_status": "warning",
+            "coverage_warning": (
+                "Prognoza została przygotowana na podstawie "
+                "niepełnych danych z ostatnich dni."
+            ),
+        }
+
+    return {
+        "coverage_7d": round(coverage_7d, 2),
+        "coverage_status": "critical",
+        "coverage_warning": (
+            "Prognoza została przygotowana na podstawie bardzo "
+            "ograniczonej liczby pomiarów i może być mniej wiarygodna."
+        ),
+    }
+
+
 # Buduje cechy dla prognozy.
 def build_forecast_features(
     measurements,
@@ -184,6 +219,10 @@ def predict_pollutant(
         weather,
     )
 
+    coverage_quality = get_coverage_quality(
+        measurements,
+    )
+
     # Ustawia kolejność cech zgodną z modelem.
     X = pd.DataFrame([features])[feature_columns]
 
@@ -203,6 +242,9 @@ def predict_pollutant(
         "data_age_days": freshness["data_age_days"],
         "data_status": freshness["data_status"],
         "warning": freshness["warning"],
+        "coverage_7d": coverage_quality["coverage_7d"],
+        "coverage_status": coverage_quality["coverage_status"],
+        "coverage_warning": coverage_quality["coverage_warning"],
     }
 
 
