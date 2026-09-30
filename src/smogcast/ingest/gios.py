@@ -1,5 +1,6 @@
 import time
 from datetime import datetime, timedelta
+from threading import Lock
 
 import httpx
 
@@ -16,6 +17,9 @@ CURRENT_DATA_URL = "https://api.gios.gov.pl/pjp-api/v1/rest/data/getData"
 
 
 METADATA_CACHE_TTL_SECONDS = 6 * 60 * 60
+
+# Minimalny odstęp między zapytaniami archiwalnymi.
+MIN_REQUEST_INTERVAL = 1.0
 
 
 # Wspólny klient HTTP.
@@ -45,6 +49,25 @@ _http_metrics = {
 }
 
 
+_request_lock = Lock()
+_last_request_time = 0.0
+
+
+# Zachowuje odstęp między zapytaniami archiwalnymi.
+def wait_for_request_slot():
+    global _last_request_time
+
+    with _request_lock:
+        now = time.monotonic()
+
+        remaining = MIN_REQUEST_INTERVAL - (now - _last_request_time)
+
+        if remaining > 0:
+            time.sleep(remaining)
+
+        _last_request_time = time.monotonic()
+
+
 # Zeruje statystyki HTTP.
 def reset_http_metrics():
     time_metrics = {
@@ -71,6 +94,9 @@ def timed_get(
     category,
     **kwargs,
 ):
+    if category == "archive":
+        wait_for_request_slot()
+
     _http_metrics["total_requests"] += 1
 
     request_key = f"{category}_requests"

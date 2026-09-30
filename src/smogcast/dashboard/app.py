@@ -1,3 +1,4 @@
+import os
 import base64
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -9,7 +10,10 @@ import pydeck as pdk
 import streamlit as st
 
 
-API_URL = "http://127.0.0.1:8000"
+API_URL = os.getenv(
+    "API_URL",
+    "http://127.0.0.1:8000",
+)
 
 LOGO_PATH = Path(__file__).parent / "assets" / "logo.png"
 

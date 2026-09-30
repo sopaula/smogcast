@@ -1,10 +1,14 @@
+import os
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
 from smogcast.storage.models import Base
 
 
-DATABASE_URL = "sqlite:///smogcast.db"
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "sqlite:///smogcast.db",
+)
 
 
 # Tworzy silnik odpowiedzialny za połączenie z bazą danych.

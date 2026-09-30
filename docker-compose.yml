@@ -1,0 +1,92 @@
+services:
+  init:
+    build: .
+    image: smogcast
+    environment:
+      DATABASE_URL: sqlite:////data/smogcast.db
+    volumes:
+      - smogcast_db:/data
+      - smogcast_data:/app/data
+      - smogcast_models:/app/models
+    command: >
+      sh -c "
+      python scripts/prepare_assets.py &&
+      python scripts/init_db.py &&
+      if [ ! -f /app/models/model_v2.joblib ]; then
+        python -m smogcast.model.train;
+      fi
+      "
+
+  updater:
+    image: smogcast
+    environment:
+      DATABASE_URL: sqlite:////data/smogcast.db
+    volumes:
+      - smogcast_db:/data
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    command: >
+      sh -c "
+      while true;
+      do
+        python scripts/refresh_all.py;
+        sleep 3600;
+      done
+      "
+
+  api:
+    image: smogcast
+    environment:
+      DATABASE_URL: sqlite:////data/smogcast.db
+    volumes:
+      - smogcast_db:/data
+      - smogcast_models:/app/models
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    ports:
+      - "8000:8000"
+    command:
+      [
+        "uvicorn",
+        "smogcast.api.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000"
+      ]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import socket; s=socket.create_connection(('127.0.0.1', 8000), 5); s.close()"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  dashboard:
+    image: smogcast
+    environment:
+      API_URL: http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "8501:8501"
+    command:
+      [
+        "streamlit",
+        "run",
+        "src/smogcast/dashboard/app.py",
+        "--server.address=0.0.0.0",
+        "--server.port=8501"
+      ]
+
+volumes:
+  smogcast_db:
+  smogcast_data:
+  smogcast_models:
