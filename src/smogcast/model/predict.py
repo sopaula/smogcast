@@ -219,6 +219,15 @@ def predict_pollutant(
         weather,
     )
 
+    missing_features = [
+        feature for feature in feature_columns if feature not in features
+    ]
+
+    if missing_features:
+        raise ValueError(
+            "Missing required model features: " + ", ".join(missing_features)
+        )
+
     coverage_quality = get_coverage_quality(
         measurements,
     )
