@@ -21,6 +21,17 @@ FRESH_DATA_DAYS = 2
 BACKFILL_RETRY_HOURS = 24
 
 
+# Ujednolica czas do UTC.
+def to_utc(dt):
+    if dt is None:
+        return None
+
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+
+    return dt.astimezone(timezone.utc)
+
+
 # Zamienia nazwę parametru na format z bazy.
 def map_param(
     param,
@@ -60,7 +71,7 @@ def get_latest_measurement_timestamp(
         .limit(1)
     )
 
-    return db.scalar(stmt)
+    return to_utc(db.scalar(stmt))
 
 
 # Przygotowuje pomiary do zapisu.
@@ -88,7 +99,7 @@ def prepare_measurements_for_database(
         prepared.append(
             {
                 "sensor_id": sensor_id,
-                "timestamp": timestamp_utc.replace(tzinfo=None),
+                "timestamp": timestamp_utc,
                 "value": value,
             }
         )
@@ -214,11 +225,8 @@ def can_retry_backfill(sensor):
     if sensor.next_retry_at is None:
         return True
 
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    next_retry_at = sensor.next_retry_at
-
-    if next_retry_at.tzinfo is not None:
-        next_retry_at = next_retry_at.astimezone(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(timezone.utc)
+    next_retry_at = to_utc(sensor.next_retry_at)
 
     return now >= next_retry_at
 
@@ -438,7 +446,7 @@ def refresh_recent_measurements(
                 date_to=archive_end_date,
             )
 
-            attempt_time = datetime.now(timezone.utc).replace(tzinfo=None)
+            attempt_time = datetime.now(timezone.utc)
 
             sensor.last_backfill_attempt = attempt_time
 
@@ -452,6 +460,7 @@ def refresh_recent_measurements(
                 or latest_after_backfill.date() < archive_end_date
             ):
                 sensor.status = "stale"
+
                 sensor.next_retry_at = attempt_time + timedelta(
                     hours=BACKFILL_RETRY_HOURS
                 )

@@ -1,4 +1,5 @@
-from sqlalchemy.dialects.sqlite import insert
+from sqlalchemy.dialects.postgresql import insert as postgres_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from smogcast.storage.models import (
@@ -10,12 +11,20 @@ from smogcast.storage.models import (
 )
 
 
-# Wstawia lub aktualizuje stację
+# Wybiera właściwy insert dla używanej bazy.
+def get_insert(db: Session, model):
+    if db.bind.dialect.name == "postgresql":
+        return postgres_insert(model)
+
+    return sqlite_insert(model)
+
+
+# Wstawia lub aktualizuje stację.
 def upsert_station(
     db: Session,
     station_data: dict,
 ):
-    stmt = insert(Station).values(
+    stmt = get_insert(db, Station).values(
         id=station_data["id"],
         name=station_data["name"],
         city=station_data["city"],
@@ -36,12 +45,12 @@ def upsert_station(
     db.execute(stmt)
 
 
-# Wstawia lub aktualizuje sensor
+# Wstawia lub aktualizuje sensor.
 def upsert_sensor(
     db: Session,
     sensor_data: dict,
 ):
-    stmt = insert(Sensor).values(
+    stmt = get_insert(db, Sensor).values(
         id=sensor_data["id"],
         station_id=sensor_data["station_id"],
         param_code=sensor_data["param_code"],
@@ -58,7 +67,7 @@ def upsert_sensor(
     db.execute(stmt)
 
 
-# Zapisuje wiele stacji i sensorów w jednej transakcji
+# Zapisuje wiele stacji i sensorów w jednej transakcji.
 def upsert_metadata(
     db: Session,
     stations: list[dict],
@@ -102,12 +111,11 @@ def map_sensor_from_gios(
 
 
 # Zapisuje pomiary do bazy.
-# Jeśli pomiar dla danego sensora i czasu już istnieje, aktualizuje jego wartość.
 def upsert_measurements(
     db: Session,
     measurements: list[dict],
 ):
-    stmt = insert(Measurement)
+    stmt = get_insert(db, Measurement)
 
     stmt = stmt.on_conflict_do_update(
         index_elements=["sensor_id", "timestamp"],
@@ -121,12 +129,11 @@ def upsert_measurements(
 
 
 # Zapisuje dane pogodowe do bazy.
-# Jeśli rekord dla danej stacji i czasu już istnieje, aktualizuje jego wartości.
 def upsert_weather(
     db: Session,
     weather_records: list[dict],
 ):
-    stmt = insert(Weather)
+    stmt = get_insert(db, Weather)
 
     stmt = stmt.on_conflict_do_update(
         index_elements=["station_id", "timestamp"],
@@ -144,13 +151,11 @@ def upsert_weather(
 
 
 # Zapisuje dobowe agregaty pomiarów do bazy.
-# Jeśli rekord dla tej samej stacji, parametru i daty już istnieje,
-# aktualizuje jego wartości zamiast tworzyć duplikat.
 def upsert_daily_measurements(
     db: Session,
     daily_records: list[dict],
 ):
-    stmt = insert(DailyMeasurement)
+    stmt = get_insert(db, DailyMeasurement)
 
     stmt = stmt.on_conflict_do_update(
         index_elements=[
