@@ -20,6 +20,9 @@ engine = create_engine(
 # Ustawia stabilniejszą pracę SQLite przy wielu procesach.
 @event.listens_for(engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
+    if engine.dialect.name != "sqlite":
+        return
+
     cursor = dbapi_connection.cursor()
 
     cursor.execute("PRAGMA journal_mode=WAL;")
