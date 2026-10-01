@@ -15,14 +15,58 @@ The application combines air quality data from GIOŚ with weather data from Open
 - Streamlit dashboard,
 - FastAPI backend,
 - Docker-based application deployment,
-- automated CI checks with GitHub Actions.
+- automated CI checks with GitHub Actions,
+- daily production data refresh,
+- deployment in Microsoft Azure.
+
+## Architecture
+
+SmogCast is divided into separate modules responsible for data ingestion, processing, storage, forecasting, API communication and visualization.
+
+```text
+GIOŚ API ───────┐
+                ├──> Ingest ──> Processing ──> Database
+Open-Meteo ─────┘                           │
+                                            ├──> ML model
+                                            │
+                                            └──> FastAPI ──> Streamlit
+```
+
+Main application flow:
+
+1. air quality data are downloaded from GIOŚ,
+2. weather data are downloaded from Open-Meteo,
+3. data are cleaned and processed,
+4. processed data are stored in the database,
+5. the forecasting model uses historical pollution and weather data,
+6. FastAPI exposes application data through REST endpoints,
+7. Streamlit communicates with the API and displays the dashboard.
+
+The project supports two database configurations:
+
+- SQLite for local development,
+- PostgreSQL for the deployed Azure environment.
 
 ## Data sources
 
-- GIOŚ – air quality measurements,
-- Open-Meteo – historical and forecast weather data.
+### GIOŚ
+
+Air quality measurements are obtained from the public API of the Chief Inspectorate of Environmental Protection  
+(Główny Inspektorat Ochrony Środowiska – GIOŚ) as part of the State Environmental Monitoring system.
+
+Source:
+
+Główny Inspektorat Ochrony Środowiska – Państwowy Monitoring Środowiska.
+
+When reusing GIOŚ data, the source of the information must be clearly indicated.
 
 The project uses 16 selected monitoring stations in Poland.
+
+### Open-Meteo
+
+Historical and forecast weather data are obtained from Open-Meteo.
+
+Open-Meteo data are provided under the CC BY 4.0 licence and require attribution.
 
 ## Requirements
 
@@ -79,7 +123,7 @@ The recommended way to run the complete application is Docker Compose.
 Start all services:
 
 ```bash
-docker compose up
+docker compose up --build
 ```
 
 Docker Compose starts:
@@ -125,7 +169,9 @@ API documentation:
 http://localhost:8000/docs
 ```
 
-The API container includes a health check. The dashboard starts only after the API is reported as healthy.
+The API includes a health check endpoint.
+
+The dashboard starts only after the API is reported as healthy.
 
 ## Forecasting
 
@@ -149,17 +195,41 @@ Coverage is used as a quality indicator and is not an input feature of the produ
 
 ## Data updates
 
-Recent measurements are downloaded from GIOŚ during data refresh.
+Recent measurements are downloaded from GIOŚ during the refresh process.
+
+### Local and Docker
 
 The Docker `updater` service periodically runs the refresh process and checks for new measurements.
 
 Sensors with incomplete archival data are marked as stale and can be retried after 24 hours.
 
+### Production
+
+The deployed application uses a scheduled GitHub Actions workflow.
+
+The workflow runs:
+
+```bash
+PYTHONPATH=src uv run python scripts/refresh_all.py
+```
+
+once per day and updates the production PostgreSQL database with recent data.
+
 ## Database
 
-SmogCast uses SQLite.
+SmogCast supports two database configurations.
 
-The database is configured with:
+### Local development
+
+SQLite is used by default.
+
+If the `DATABASE_URL` environment variable is not provided, the application automatically falls back to:
+
+```text
+sqlite:///smogcast.db
+```
+
+The local database uses:
 
 - WAL mode,
 - `busy_timeout`,
@@ -168,6 +238,52 @@ The database is configured with:
 When running with Docker Compose, the database is stored in a persistent Docker volume.
 
 The local database file is not stored in the repository.
+
+### Production
+
+The deployed version uses Azure Database for PostgreSQL.
+
+The production database connection is provided through the `DATABASE_URL` environment variable and is stored as a secret in the Azure environment.
+
+## Deployment
+
+The production version of SmogCast is deployed in Microsoft Azure.
+
+The deployment uses:
+
+- Azure Container Apps – FastAPI backend and Streamlit dashboard,
+- Azure Database for PostgreSQL – production database,
+- Azure Container Registry – Docker image storage,
+- Managed Identity – secure access to the container registry,
+- Log Analytics – application logs and monitoring,
+- GitHub Actions – automatic daily data refresh.
+
+The API and dashboard are deployed as separate Container Apps.
+
+Both applications are configured with:
+
+- `minReplicas = 0`,
+- `maxReplicas = 1`.
+
+This allows the applications to scale down when they are not being used.
+
+The API uses a health check endpoint:
+
+```text
+/health
+```
+
+Public dashboard:
+
+```text
+...
+```
+
+## Known limitations
+
+The first forecast request for a station may take longer because current weather forecast data are fetched from an external API.
+
+In some cases, the first forecast request may time out. Retrying the request usually resolves the issue.
 
 ## Tests
 
@@ -183,16 +299,33 @@ Run Ruff:
 uv run ruff check .
 ```
 
-## Continuous Integration
+## GitHub Actions
 
-GitHub Actions automatically runs CI checks for every Pull Request.
+The repository uses GitHub Actions for continuous integration and automatic data refresh.
 
-The CI pipeline checks:
+### Continuous Integration
+
+For every Pull Request to `main`, the CI workflow runs:
 
 - Ruff,
-- pytest.
+- pytest,
+- Docker image build.
 
-A Pull Request must pass the required CI check before it can be merged into `main`.
+A Pull Request must pass the required CI checks before it can be merged into `main`.
+
+### Daily ingest
+
+A separate scheduled workflow runs once per day.
+
+It:
+
+1. checks out the repository,
+2. installs Python and project dependencies,
+3. connects to the production PostgreSQL database,
+4. runs `scripts/refresh_all.py`,
+5. updates recent measurement and weather data.
+
+The workflow can also be started manually from GitHub Actions.
 
 ## Project structure
 
@@ -200,7 +333,8 @@ A Pull Request must pass the required CI check before it can be merged into `mai
 smogcast/
 ├── .github/
 │   └── workflows/
-│       └── ci.yml
+│       ├── ci.yml
+│       └── ingest.yml
 ├── scripts/
 │   ├── prepare_assets.py
 │   ├── init_db.py
