@@ -323,7 +323,7 @@ def get_forecast(
 ):
     response = httpx.get(
         f"{API_URL}/stations/{station_id}/forecast",
-        timeout=30.0,
+        timeout=60.0,
     )
 
     response.raise_for_status()
@@ -766,7 +766,7 @@ try:
 except httpx.HTTPError:
     forecast = None
 
-    st.error("Nie udało się pobrać prognozy.")
+    st.warning("Prognoza ładuje się dłużej. Spróbuj ponownie za chwilę.")
 
 
 if forecast is not None:
