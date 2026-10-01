@@ -844,7 +844,10 @@ except httpx.HTTPError:
 if history:
     history_df = pd.DataFrame(history)
 
-    history_df["timestamp"] = pd.to_datetime(history_df["timestamp"])
+    history_df["timestamp"] = pd.to_datetime(
+        history_df["timestamp"],
+        utc=True,
+    )
 
     history_df = history_df.sort_values("timestamp")
 
@@ -865,7 +868,7 @@ if history:
         12: "Gru",
     }
 
-    today = pd.Timestamp.now().normalize()
+    today = pd.Timestamp.now(tz="UTC").normalize()
 
     # Ustawia początek zakresu.
     date_from = today - pd.Timedelta(days=history_days[history_range])

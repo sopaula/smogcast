@@ -2,10 +2,9 @@ services:
   init:
     build: .
     image: smogcast
-    environment:
-      DATABASE_URL: sqlite:////data/smogcast.db
+    env_file:
+      - .env
     volumes:
-      - smogcast_db:/data
       - smogcast_data:/app/data
       - smogcast_models:/app/models
     command: >
@@ -19,10 +18,8 @@ services:
 
   updater:
     image: smogcast
-    environment:
-      DATABASE_URL: sqlite:////data/smogcast.db
-    volumes:
-      - smogcast_db:/data
+    env_file:
+      - .env
     depends_on:
       init:
         condition: service_completed_successfully
@@ -37,10 +34,9 @@ services:
 
   api:
     image: smogcast
-    environment:
-      DATABASE_URL: sqlite:////data/smogcast.db
+    env_file:
+      - .env
     volumes:
-      - smogcast_db:/data
       - smogcast_models:/app/models
     depends_on:
       init:
@@ -87,6 +83,5 @@ services:
       ]
 
 volumes:
-  smogcast_db:
   smogcast_data:
   smogcast_models:
