@@ -763,10 +763,10 @@ st.markdown(
 try:
     forecast = get_forecast(station_id)
 
-except httpx.HTTPError:
+except httpx.HTTPError as exc:
     forecast = None
-
-    st.warning("Prognoza ładuje się dłużej. Spróbuj ponownie za chwilę.")
+    st.warning("Nie udało się pobrać prognozy.")
+    st.caption(str(exc))
 
 
 if forecast is not None:
