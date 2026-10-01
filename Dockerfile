@@ -27,6 +27,7 @@ COPY --from=builder /app/.venv /app/.venv
 # Kopiuje kod projektu.
 COPY src ./src
 COPY scripts ./scripts
+COPY models ./models
 
 # Tworzy katalogi na dane i model.
 RUN mkdir -p /app/data /app/models /data
