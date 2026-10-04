@@ -19,7 +19,7 @@ from smogcast.ingest.weather import (
 from smogcast.processing.daily import (
     aggregate_daily_measurements_for_sensors,
 )
-from smogcast.storage.db import SessionLocal
+from smogcast.storage.db import SessionLocal, create_tables
 from smogcast.storage.models import (
     InitializationState,
     Measurement,
@@ -184,6 +184,8 @@ def save_last_successful_refresh():
 
 # Aktualizuje wszystkie stacje.
 def refresh_all_stations():
+    create_tables()
+
     reset_http_metrics()
 
     station_ids = get_station_ids()
