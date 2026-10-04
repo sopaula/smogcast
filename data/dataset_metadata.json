@@ -1,0 +1,24 @@
+{
+  "dataset_version": "data-v1",
+  "description": "Prepared historical dataset used by SmogCast for local initialization and model training.",
+  "date_range": {
+    "start": "2023-08-20T00:00:00Z",
+    "end": "2026-08-20T23:00:00Z"
+  },
+  "timezone": "UTC",
+  "sources": [
+    "GIOŚ",
+    "Open-Meteo"
+  ],
+  "processing_version": "1",
+  "files": {
+    "gios_pm_measurements_3y.parquet": {
+      "rows": 659754,
+      "sha256": "88c0de4c4d4f8ee016b67b7e20fafec2540a56cf27cf52ebf043bb559e3f7e87"
+    },
+    "open_meteo_weather_3y.parquet": {
+      "rows": 421248,
+      "sha256": "98ebd117a82ce656ffb7330e03d7cd839c7e8b6896be4871f55e3c8e0db08338"
+    }
+  }
+}

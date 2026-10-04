@@ -10,7 +10,8 @@ wheels/
 .venv/
 
 # Project data and secrets
-data/
+data/raw/
+data/processed/
 .env
 .env.*
 

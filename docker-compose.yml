@@ -1,9 +1,30 @@
 services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: smogcast
+      POSTGRES_USER: smogcast
+      POSTGRES_PASSWORD: smogcast
+    volumes:
+      - smogcast_postgres:/var/lib/postgresql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U smogcast -d smogcast"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   init:
     build: .
     image: smogcast
-    env_file:
-      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://smogcast:smogcast@postgres:5432/smogcast
+    depends_on:
+      postgres:
+        condition: service_healthy
     volumes:
       - smogcast_data:/app/data
       - smogcast_models:/app/models
@@ -18,8 +39,8 @@ services:
 
   updater:
     image: smogcast
-    env_file:
-      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://smogcast:smogcast@postgres:5432/smogcast
     depends_on:
       init:
         condition: service_completed_successfully
@@ -34,8 +55,8 @@ services:
 
   api:
     image: smogcast
-    env_file:
-      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://smogcast:smogcast@postgres:5432/smogcast
     volumes:
       - smogcast_models:/app/models
     depends_on:
@@ -85,3 +106,4 @@ services:
 volumes:
   smogcast_data:
   smogcast_models:
+  smogcast_postgres:
