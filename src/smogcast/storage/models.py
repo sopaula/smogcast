@@ -201,6 +201,41 @@ class DailyMeasurement(Base):
     )
 
 
+# Prognoza pogody dla lokalizacji stacji.
+class WeatherForecast(Base):
+    __tablename__ = "weather_forecasts"
+
+    station_id: Mapped[int] = mapped_column(
+        ForeignKey("stations.id"),
+        primary_key=True,
+    )
+
+    target_date: Mapped[date] = mapped_column(
+        Date,
+        primary_key=True,
+    )
+
+    temp_c: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+    )
+
+    wind_ms: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+    )
+
+    humidity: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+    )
+
+    fetched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+
+
 # Prognozy wygenerowane przez model.
 class Prediction(Base):
     __tablename__ = "predictions"

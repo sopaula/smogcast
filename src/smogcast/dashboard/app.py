@@ -49,7 +49,37 @@ st.markdown(
 <style>
 
 header[data-testid="stHeader"] {
+    background: transparent;
+    height: 0;
+}
+
+header[data-testid="stHeader"] > div {
+    background: transparent;
+}
+
+/* Zostawia menu Streamlita nad paskiem SmogCast. */
+div[data-testid="stToolbar"] {
+    z-index: 1000;
+}
+
+/* Ukrywa przycisk Deploy. */
+button[data-testid="stDeployButton"] {
     display: none;
+}
+
+/* Ukrywa dodatkowe akcje i zostawia menu po prawej. */
+div[data-testid="stToolbarActions"] > div:not(:last-child) {
+    display: none;
+}
+
+/* Menu jest zawsze ciemne, bo pasek SmogCast jest jasny. */
+div[data-testid="stToolbar"] button {
+    color: #222 !important;
+}
+
+div[data-testid="stToolbar"] svg {
+    color: #222 !important;
+    fill: #222 !important;
 }
 
 .block-container {
@@ -151,13 +181,13 @@ header[data-testid="stHeader"] {
     left: 0;
     width: 100vw;
     height: 68px;
-    z-index: 999999;
+    z-index: 999;
 
     display: flex;
     align-items: center;
     justify-content: space-between;
 
-    padding: 0 40px;
+    padding: 0 140px 0 40px;
     box-sizing: border-box;
 
     background-color: #f1f3f5;
@@ -708,11 +738,12 @@ if map_data:
         ],
         initial_view_state=view_state,
         tooltip=tooltip,
+        map_style=None,
     )
 
     st.pydeck_chart(
         deck,
-        use_container_width=True,
+        width="stretch",
     )
 
     st.markdown(
@@ -1099,7 +1130,7 @@ if history:
 
     st.altair_chart(
         chart,
-        use_container_width=True,
+        width="stretch",
     )
 
 else:
