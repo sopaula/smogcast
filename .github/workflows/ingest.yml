@@ -2,7 +2,7 @@ name: Daily ingest
 
 on:
   schedule:
-    - cron: "0 5 * * *"
+    - cron: "17 5 * * *"
       timezone: "Europe/Warsaw"
 
   workflow_dispatch:
