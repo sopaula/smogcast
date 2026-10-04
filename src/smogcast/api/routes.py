@@ -6,7 +6,6 @@ from sqlalchemy import select
 
 from smogcast.api.schemas import (
     ForecastResponse,
-    HealthResponse,
     MeasurementResponse,
     StationResponse,
     StatusResponse,
@@ -34,17 +33,6 @@ def map_param(
         return "PM2.5"
 
     return param
-
-
-# Sprawdza działanie API.
-@router.get(
-    "/health",
-    response_model=HealthResponse,
-)
-def health():
-    return {
-        "status": "ok",
-    }
 
 
 # Zwraca czas ostatniego udanego odświeżenia.
