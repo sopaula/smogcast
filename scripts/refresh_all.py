@@ -216,6 +216,9 @@ def refresh_all_stations():
 
     print("==============================")
 
+    if failed > 0:
+        raise RuntimeError(f"Nie udało się odświeżyć {failed} stacji.")
+
 
 if __name__ == "__main__":
     refresh_all_stations()
