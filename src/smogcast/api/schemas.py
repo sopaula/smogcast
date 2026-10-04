@@ -48,3 +48,8 @@ class ForecastResponse(BaseModel):
 
     pm10: PollutantForecastResponse
     pm25: PollutantForecastResponse
+
+
+# Odpowiedź endpointu statusu odświeżania danych.
+class StatusResponse(BaseModel):
+    last_successful_refresh: datetime | None
