@@ -1,14 +1,18 @@
-from datetime import date, timedelta
-from time import perf_counter
+from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
+from time import perf_counter
 
+import httpx
 import joblib
 import pandas as pd
 from sqlalchemy import select
 
 from smogcast.ingest.current import get_data_freshness
-from smogcast.ingest.weather import get_tomorrow_weather
+from smogcast.ingest.weather import (
+    get_forecast_weather,
+    get_tomorrow_date,
+)
 from smogcast.processing.seasons import is_heating_season
 from smogcast.storage.db import SessionLocal
 from smogcast.storage.models import (
@@ -16,6 +20,7 @@ from smogcast.storage.models import (
     Measurement,
     Sensor,
     Station,
+    WeatherForecast,
 )
 
 
@@ -134,6 +139,98 @@ def get_recent_measurements(
     return list(db.scalars(stmt))
 
 
+# Pobiera zapisaną prognozę pogody dla konkretnego dnia.
+def get_saved_weather_forecast(
+    db,
+    station_id,
+    target_date,
+):
+    stmt = select(WeatherForecast).where(
+        WeatherForecast.station_id == station_id,
+        WeatherForecast.target_date == target_date,
+    )
+
+    forecast = db.scalar(stmt)
+
+    if forecast is None:
+        return None
+
+    return {
+        "date": forecast.target_date,
+        "temp_c": forecast.temp_c,
+        "wind_ms": forecast.wind_ms,
+        "humidity": forecast.humidity,
+    }
+
+
+# Zapisuje prognozę pogody pobraną awaryjnie.
+def save_weather_forecast(
+    station_id,
+    weather,
+):
+    with SessionLocal() as db:
+        forecast = WeatherForecast(
+            station_id=station_id,
+            target_date=weather["date"],
+            temp_c=weather["temp_c"],
+            wind_ms=weather["wind_ms"],
+            humidity=weather["humidity"],
+            fetched_at=datetime.now(timezone.utc),
+        )
+
+        db.merge(forecast)
+        db.commit()
+
+
+# Pobiera pogodę z bazy lub awaryjnie z Open-Meteo.
+def get_weather_for_prediction(
+    station_id,
+    latitude,
+    longitude,
+):
+    target_date = get_tomorrow_date()
+
+    # Najpierw sprawdza prognozę zapisaną w bazie.
+    with SessionLocal() as db:
+        weather = get_saved_weather_forecast(
+            db,
+            station_id,
+            target_date,
+        )
+
+    if weather is not None:
+        return weather, "database"
+
+    print(
+        f"[forecast-weather] "
+        f"station={station_id} "
+        f"target_date={target_date} "
+        f"source=open-meteo-fallback"
+    )
+
+    # Brak prognozy na właściwe jutro - pobiera ją na żywo.
+    weather = get_forecast_weather(
+        latitude,
+        longitude,
+        target_date,
+    )
+
+    if weather is None:
+        raise RuntimeError(
+            "Weather forecast unavailable "
+            f"for station {station_id} "
+            f"and date {target_date}"
+        )
+
+    # Zapisuje fallback, żeby kolejne żądania korzystały już z bazy.
+    save_weather_forecast(
+        station_id,
+        weather,
+    )
+
+    return weather, "open-meteo"
+
+
 # Określa jakość danych na podstawie coverage.
 def get_coverage_quality(
     measurements,
@@ -144,27 +241,39 @@ def get_coverage_quality(
 
     if coverage_7d >= 75:
         return {
-            "coverage_7d": round(coverage_7d, 2),
+            "coverage_7d": round(
+                coverage_7d,
+                2,
+            ),
             "coverage_status": "good",
             "coverage_warning": None,
         }
 
     if coverage_7d >= 50:
         return {
-            "coverage_7d": round(coverage_7d, 2),
+            "coverage_7d": round(
+                coverage_7d,
+                2,
+            ),
             "coverage_status": "warning",
             "coverage_warning": (
-                "Prognoza została przygotowana na podstawie "
-                "niepełnych danych z ostatnich dni."
+                "Prognoza została przygotowana "
+                "na podstawie niepełnych danych "
+                "z ostatnich dni."
             ),
         }
 
     return {
-        "coverage_7d": round(coverage_7d, 2),
+        "coverage_7d": round(
+            coverage_7d,
+            2,
+        ),
         "coverage_status": "critical",
         "coverage_warning": (
-            "Prognoza została przygotowana na podstawie bardzo "
-            "ograniczonej liczby pomiarów i może być mniej wiarygodna."
+            "Prognoza została przygotowana "
+            "na podstawie bardzo ograniczonej "
+            "liczby pomiarów i może być "
+            "mniej wiarygodna."
         ),
     }
 
@@ -187,19 +296,19 @@ def build_forecast_features(
 
     coverages = [measurement.coverage for measurement in valid_measurements]
 
-    tomorrow = date.today() + timedelta(days=1)
+    target_date = weather["date"]
 
     return {
         "pm_lag_1d": values[0],
-        "pm_mean_3d": sum(values[:3]) / 3,
-        "pm_mean_7d": sum(values[:7]) / 7,
+        "pm_mean_3d": (sum(values[:3]) / 3),
+        "pm_mean_7d": (sum(values[:7]) / 7),
         "coverage_lag_1d": coverages[0],
-        "coverage_mean_3d": sum(coverages[:3]) / 3,
-        "coverage_mean_7d": sum(coverages[:7]) / 7,
-        "month": tomorrow.month,
-        "day_of_week": tomorrow.weekday(),
-        "is_weekend": int(tomorrow.weekday() >= 5),
-        "is_heating_season": int(is_heating_season(tomorrow)),
+        "coverage_mean_3d": (sum(coverages[:3]) / 3),
+        "coverage_mean_7d": (sum(coverages[:7]) / 7),
+        "month": target_date.month,
+        "day_of_week": (target_date.weekday()),
+        "is_weekend": int(target_date.weekday() >= 5),
+        "is_heating_season": int(is_heating_season(target_date)),
         "temp_c": weather["temp_c"],
         "wind_ms": weather["wind_ms"],
         "humidity": weather["humidity"],
@@ -229,9 +338,7 @@ def predict_pollutant(
             "Missing required model features: " + ", ".join(missing_features)
         )
 
-    coverage_quality = get_coverage_quality(
-        measurements,
-    )
+    coverage_quality = get_coverage_quality(measurements)
 
     # Ustawia kolejność cech zgodną z modelem.
     X = pd.DataFrame([features])[feature_columns]
@@ -247,14 +354,14 @@ def predict_pollutant(
             2,
         ),
         "threshold": threshold,
-        "alarm": prediction > threshold,
+        "alarm": (prediction > threshold),
         "data_date": freshness["data_date"],
         "data_age_days": freshness["data_age_days"],
         "data_status": freshness["data_status"],
         "warning": freshness["warning"],
-        "coverage_7d": coverage_quality["coverage_7d"],
-        "coverage_status": coverage_quality["coverage_status"],
-        "coverage_warning": coverage_quality["coverage_warning"],
+        "coverage_7d": (coverage_quality["coverage_7d"]),
+        "coverage_status": (coverage_quality["coverage_status"]),
+        "coverage_warning": (coverage_quality["coverage_warning"]),
     }
 
 
@@ -264,113 +371,147 @@ def predict_station_tomorrow(
 ):
     total_start = perf_counter()
 
-    # Wczytuje model.
-    model_start = perf_counter()
+    try:
+        # Wczytuje model.
+        model_start = perf_counter()
 
-    model_bundle = load_model_bundle()
+        model_bundle = load_model_bundle()
 
-    model_time = perf_counter() - model_start
+        model_time = perf_counter() - model_start
 
-    model = model_bundle["model"]
-    feature_columns = model_bundle["feature_columns"]
+        model = model_bundle["model"]
 
-    # Pobiera dane z bazy.
-    db_start = perf_counter()
+        feature_columns = model_bundle["feature_columns"]
 
-    with SessionLocal() as db:
-        station = get_station(
-            db,
+        # Pobiera dane z bazy.
+        db_start = perf_counter()
+
+        with SessionLocal() as db:
+            station = get_station(
+                db,
+                station_id,
+            )
+
+            if station is None:
+                raise ValueError("Station not found")
+
+            pm10_freshness = get_latest_sensor_data(
+                db,
+                station_id,
+                "PM10",
+            )
+
+            pm25_freshness = get_latest_sensor_data(
+                db,
+                station_id,
+                "PM25",
+            )
+
+            pm10_measurements = get_recent_measurements(
+                db,
+                station_id,
+                "PM10",
+            )
+
+            pm25_measurements = get_recent_measurements(
+                db,
+                station_id,
+                "PM2.5",
+            )
+
+            if len(pm10_measurements) < 7:
+                raise ValueError("Not enough historical PM10 data")
+
+            if len(pm25_measurements) < 7:
+                raise ValueError("Not enough historical PM2.5 data")
+
+            latitude = station.latitude
+
+            longitude = station.longitude
+
+        db_time = perf_counter() - db_start
+
+        # Pobiera pogodę z bazy lub awaryjnie z Open-Meteo.
+        weather_start = perf_counter()
+
+        weather, weather_source = get_weather_for_prediction(
             station_id,
+            latitude,
+            longitude,
         )
 
-        if station is None:
-            raise ValueError("Station not found")
+        weather_time = perf_counter() - weather_start
 
-        pm10_freshness = get_latest_sensor_data(
-            db,
-            station_id,
-            "PM10",
+        # Liczy prognozy.
+        prediction_start = perf_counter()
+
+        pm10_forecast = predict_pollutant(
+            model=model,
+            feature_columns=feature_columns,
+            measurements=pm10_measurements,
+            weather=weather,
+            param="PM10",
+            freshness=pm10_freshness,
         )
 
-        pm25_freshness = get_latest_sensor_data(
-            db,
-            station_id,
-            "PM25",
+        pm25_forecast = predict_pollutant(
+            model=model,
+            feature_columns=feature_columns,
+            measurements=pm25_measurements,
+            weather=weather,
+            param="PM25",
+            freshness=pm25_freshness,
         )
 
-        pm10_measurements = get_recent_measurements(
-            db,
-            station_id,
-            "PM10",
+        prediction_time = perf_counter() - prediction_start
+
+        total_time = perf_counter() - total_start
+
+        print(
+            f"[forecast] "
+            f"station={station_id} "
+            f"model={model_time:.2f}s "
+            f"db={db_time:.2f}s "
+            f"weather={weather_time:.2f}s "
+            f"weather_source={weather_source} "
+            f"prediction={prediction_time:.2f}s "
+            f"total={total_time:.2f}s"
         )
 
-        pm25_measurements = get_recent_measurements(
-            db,
-            station_id,
-            "PM2.5",
+        return {
+            "station_id": station_id,
+            "forecast_date": (weather["date"]),
+            "pm10": pm10_forecast,
+            "pm25": pm25_forecast,
+        }
+
+    except httpx.HTTPStatusError as error:
+        print(
+            f"[forecast-error] "
+            f"station={station_id} "
+            f"type={type(error).__name__} "
+            f"status="
+            f"{error.response.status_code}"
         )
 
-        if len(pm10_measurements) < 7:
-            raise ValueError("Not enough historical PM10 data")
+        raise
 
-        if len(pm25_measurements) < 7:
-            raise ValueError("Not enough historical PM2.5 data")
+    except httpx.HTTPError as error:
+        print(
+            f"[forecast-error] "
+            f"station={station_id} "
+            f"type={type(error).__name__} "
+            "status=None"
+        )
 
-        latitude = station.latitude
-        longitude = station.longitude
+        raise
 
-    db_time = perf_counter() - db_start
+    except Exception as error:
+        print(
+            f"[forecast-error] "
+            f"station={station_id} "
+            f"type={type(error).__name__} "
+            "status=None"
+        )
 
-    # Pobiera pogodę na jutro.
-    weather_start = perf_counter()
-
-    weather = get_tomorrow_weather(
-        latitude,
-        longitude,
-    )
-
-    weather_time = perf_counter() - weather_start
-
-    if weather is None:
-        raise ValueError("Weather forecast unavailable")
-
-    # Liczy prognozy.
-    prediction_start = perf_counter()
-
-    pm10_forecast = predict_pollutant(
-        model=model,
-        feature_columns=feature_columns,
-        measurements=pm10_measurements,
-        weather=weather,
-        param="PM10",
-        freshness=pm10_freshness,
-    )
-
-    pm25_forecast = predict_pollutant(
-        model=model,
-        feature_columns=feature_columns,
-        measurements=pm25_measurements,
-        weather=weather,
-        param="PM25",
-        freshness=pm25_freshness,
-    )
-
-    prediction_time = perf_counter() - prediction_start
-
-    total_time = perf_counter() - total_start
-
-    print(
-        f"[forecast] station={station_id} "
-        f"model={model_time:.2f}s "
-        f"db={db_time:.2f}s "
-        f"weather={weather_time:.2f}s "
-        f"prediction={prediction_time:.2f}s "
-        f"total={total_time:.2f}s"
-    )
-
-    return {
-        "station_id": station_id,
-        "forecast_date": weather["date"],
-        "pm10": pm10_forecast,
-        "pm25": pm25_forecast,
-    }
+        raise

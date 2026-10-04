@@ -1,5 +1,6 @@
 import time
-from datetime import date, timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -7,9 +8,11 @@ import httpx
 OPEN_METEO_ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 OPEN_METEO_FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 
+WARSAW_TZ = ZoneInfo("Europe/Warsaw")
 
-# Zamienia odpowiedź Open-Meteo na listę godzinowych pomiarów pogody
-# Do każdego pomiaru dopisuje informacje o stacji
+
+# Zamienia odpowiedź Open-Meteo na listę godzinowych pomiarów pogody.
+# Do każdego pomiaru dopisuje informacje o stacji.
 def parse_weather_data(
     data,
     station_id,
@@ -42,9 +45,8 @@ def parse_weather_data(
     return measurements
 
 
-# Pobiera historyczne dane pogodowe dla jednej stacji
-# Dane są pobierane godzinowo i od razu w strefie UTC
-# W przypadku timeoutu lub kodu 429 funkcja ponawia zapytanie
+# Pobiera historyczne dane pogodowe dla jednej stacji.
+# Dane są pobierane godzinowo i od razu w strefie UTC.
 def get_weather_for_location(
     station_id,
     station_name,
@@ -73,6 +75,7 @@ def get_weather_for_location(
 
             if response.status_code == 429:
                 print("Za dużo zapytań do Open-Meteo. Czekam 10 sekund...")
+
                 time.sleep(10)
                 continue
 
@@ -93,14 +96,27 @@ def get_weather_for_location(
         except (httpx.ReadTimeout, httpx.ConnectTimeout):
             print(f"Timeout dla stacji {station_id}. Próba {attempt + 1}/{max_retries}")
 
+        except httpx.HTTPStatusError as error:
+            print(
+                f"Błąd Open-Meteo dla stacji {station_id}: "
+                f"HTTP {error.response.status_code}. "
+                f"Próba {attempt + 1}/{max_retries}"
+            )
+
+        except httpx.HTTPError as error:
+            print(
+                f"Błąd połączenia z Open-Meteo dla stacji {station_id}: "
+                f"{type(error).__name__}. "
+                f"Próba {attempt + 1}/{max_retries}"
+            )
+
+        if attempt < max_retries - 1:
             time.sleep(5)
 
     return None
 
 
-# Pobiera pogodę historyczną dla wszystkich wybranych stacji
-# Łączy pomiary w jedną listę i zapisuje stacje,
-# których nie udało się pobrać
+# Pobiera pogodę historyczną dla wszystkich wybranych stacji.
 def get_weather_for_stations(
     station_records,
     start_date,
@@ -143,16 +159,22 @@ def get_weather_for_stations(
     return all_weather, failed_stations
 
 
-# Pobiera prognozę pogody na jutro dla jednej lokalizacji
-# Dane są pobierane godzinowo z endpointu forecast Open-Meteo
-# Następnie liczone są średnie dobowe temperatury,
-# wilgotności i prędkości wiatru
-def get_tomorrow_weather(
+# Zwraca jutrzejszą datę według czasu w Polsce.
+def get_tomorrow_date():
+    today = datetime.now(WARSAW_TZ).date()
+
+    return today + timedelta(days=1)
+
+
+# Pobiera prognozę pogody dla wskazanego dnia.
+# Z danych godzinowych wylicza średnie dobowe.
+def get_forecast_weather(
     latitude,
     longitude,
+    target_date,
     max_retries=3,
 ):
-    tomorrow = date.today() + timedelta(days=1)
+    target_date_text = target_date.isoformat()
 
     for attempt in range(max_retries):
         try:
@@ -161,8 +183,8 @@ def get_tomorrow_weather(
                 params={
                     "latitude": latitude,
                     "longitude": longitude,
-                    "start_date": tomorrow.isoformat(),
-                    "end_date": tomorrow.isoformat(),
+                    "start_date": target_date_text,
+                    "end_date": target_date_text,
                     "hourly": ("temperature_2m,relative_humidity_2m,wind_speed_10m"),
                     "timezone": "UTC",
                 },
@@ -171,6 +193,7 @@ def get_tomorrow_weather(
 
             if response.status_code == 429:
                 print("Za dużo zapytań do Open-Meteo. Czekam 10 sekund...")
+
                 time.sleep(10)
                 continue
 
@@ -184,13 +207,11 @@ def get_tomorrow_weather(
             wind_speeds = hourly["wind_speed_10m"]
 
             average_temperature = sum(temperatures) / len(temperatures)
-
             average_humidity = sum(humidities) / len(humidities)
-
             average_wind_speed = sum(wind_speeds) / len(wind_speeds)
 
             return {
-                "date": tomorrow,
+                "date": target_date,
                 "temp_c": average_temperature,
                 "humidity": average_humidity,
                 "wind_ms": average_wind_speed / 3.6,
@@ -202,6 +223,37 @@ def get_tomorrow_weather(
                 f"Próba {attempt + 1}/{max_retries}"
             )
 
+        except httpx.HTTPStatusError as error:
+            print(
+                "Błąd Open-Meteo podczas pobierania prognozy: "
+                f"HTTP {error.response.status_code}. "
+                f"Próba {attempt + 1}/{max_retries}"
+            )
+
+        except httpx.HTTPError as error:
+            print(
+                "Błąd połączenia z Open-Meteo podczas pobierania prognozy: "
+                f"{type(error).__name__}. "
+                f"Próba {attempt + 1}/{max_retries}"
+            )
+
+        if attempt < max_retries - 1:
             time.sleep(5)
 
     return None
+
+
+# Pobiera prognozę pogody na jutro.
+def get_tomorrow_weather(
+    latitude,
+    longitude,
+    max_retries=3,
+):
+    tomorrow = get_tomorrow_date()
+
+    return get_forecast_weather(
+        latitude,
+        longitude,
+        tomorrow,
+        max_retries=max_retries,
+    )
