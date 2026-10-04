@@ -2,6 +2,7 @@ import base64
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
+from time import perf_counter
 
 import altair as alt
 import httpx
@@ -805,6 +806,8 @@ st.markdown(
 )
 
 
+forecast_start = perf_counter()
+
 try:
     forecast = get_forecast(station_id)
 
@@ -814,6 +817,10 @@ except httpx.HTTPError as exc:
     st.warning("Nie udało się pobrać prognozy.")
 
     st.caption(str(exc))
+
+print(
+    f"[dashboard] station={station_id} forecast={perf_counter() - forecast_start:.2f}s"
+)
 
 
 if forecast is not None:
