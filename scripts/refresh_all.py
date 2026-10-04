@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from time import perf_counter
 
 import httpx
@@ -14,7 +15,11 @@ from smogcast.processing.daily import (
     aggregate_daily_measurements_for_sensors,
 )
 from smogcast.storage.db import SessionLocal
-from smogcast.storage.models import Measurement, Sensor
+from smogcast.storage.models import (
+    InitializationState,
+    Measurement,
+    Sensor,
+)
 
 
 # Pobiera stacje używane w Smogcast.
@@ -32,6 +37,18 @@ def get_station_ids():
         )
 
         return list(db.scalars(stmt))
+
+
+# Zapisuje czas ostatniego udanego odświeżenia.
+def save_last_successful_refresh():
+    with SessionLocal() as db:
+        state = InitializationState(
+            step="last_successful_refresh",
+            completed_at=datetime.now(timezone.utc),
+        )
+
+        db.merge(state)
+        db.commit()
 
 
 # Aktualizuje wszystkie stacje.
@@ -218,6 +235,10 @@ def refresh_all_stations():
 
     if failed > 0:
         raise RuntimeError(f"Nie udało się odświeżyć {failed} stacji.")
+
+    save_last_successful_refresh()
+
+    print("Zapisano czas ostatniego udanego odświeżenia.")
 
 
 if __name__ == "__main__":

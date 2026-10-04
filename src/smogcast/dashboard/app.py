@@ -1,5 +1,5 @@
-import os
 import base64
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -223,6 +223,22 @@ def format_timestamp(
     return timestamp.strftime("%d.%m.%Y, %H:%M")
 
 
+# Formatuje czas odświeżenia w polskiej strefie czasowej.
+def format_refresh_timestamp(
+    timestamp_text,
+):
+    timestamp = pd.to_datetime(
+        timestamp_text,
+        utc=True,
+    )
+
+    timestamp = timestamp.tz_convert(
+        "Europe/Warsaw",
+    )
+
+    return timestamp.strftime("%d.%m.%Y, %H:%M")
+
+
 # Formatuje datę.
 def format_date(
     date_text,
@@ -260,6 +276,19 @@ def backend_param_name(
 def get_stations():
     response = httpx.get(
         f"{API_URL}/stations",
+        timeout=10.0,
+    )
+
+    response.raise_for_status()
+
+    return response.json()
+
+
+# Pobiera status ostatniego odświeżenia danych.
+@st.cache_data(ttl=60)
+def get_app_status():
+    response = httpx.get(
+        f"{API_URL}/status",
         timeout=10.0,
     )
 
@@ -575,10 +604,25 @@ except httpx.HTTPError:
     st.stop()
 
 
+try:
+    app_status = get_app_status()
+
+except httpx.HTTPError:
+    app_status = None
+
+
 if not stations:
     st.warning("Brak dostępnych stacji.")
 
     st.stop()
+
+
+if app_status is not None and app_status["last_successful_refresh"] is not None:
+    last_refresh = format_refresh_timestamp(
+        app_status["last_successful_refresh"],
+    )
+
+    st.caption(f"Ostatnia udana aktualizacja danych: {last_refresh}")
 
 
 # MAPA
@@ -598,6 +642,7 @@ map_param_display = st.radio(
     ],
     horizontal=True,
 )
+
 
 map_param = backend_param_name(map_param_display)
 
@@ -765,7 +810,9 @@ try:
 
 except httpx.HTTPError as exc:
     forecast = None
+
     st.warning("Nie udało się pobrać prognozy.")
+
     st.caption(str(exc))
 
 
@@ -805,6 +852,7 @@ history_param_display = st.radio(
     horizontal=True,
     key="history_param",
 )
+
 
 history_param = backend_param_name(history_param_display)
 

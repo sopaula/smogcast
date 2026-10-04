@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from time import perf_counter
 from functools import lru_cache
 from pathlib import Path
 
@@ -261,15 +262,22 @@ def predict_pollutant(
 def predict_station_tomorrow(
     station_id,
 ):
+    total_start = perf_counter()
+
     # Wczytuje model.
+    model_start = perf_counter()
+
     model_bundle = load_model_bundle()
 
-    model = model_bundle["model"]
+    model_time = perf_counter() - model_start
 
+    model = model_bundle["model"]
     feature_columns = model_bundle["feature_columns"]
 
+    # Pobiera dane z bazy.
+    db_start = perf_counter()
+
     with SessionLocal() as db:
-        # Pobiera stację.
         station = get_station(
             db,
             station_id,
@@ -278,28 +286,24 @@ def predict_station_tomorrow(
         if station is None:
             raise ValueError("Station not found")
 
-        # Pobiera najnowsze dane PM10.
         pm10_freshness = get_latest_sensor_data(
             db,
             station_id,
             "PM10",
         )
 
-        # Pobiera najnowsze dane PM2.5.
         pm25_freshness = get_latest_sensor_data(
             db,
             station_id,
             "PM25",
         )
 
-        # Pobiera historię dobową PM10.
         pm10_measurements = get_recent_measurements(
             db,
             station_id,
             "PM10",
         )
 
-        # Pobiera historię dobową PM2.5.
         pm25_measurements = get_recent_measurements(
             db,
             station_id,
@@ -312,16 +316,27 @@ def predict_station_tomorrow(
         if len(pm25_measurements) < 7:
             raise ValueError("Not enough historical PM2.5 data")
 
-        # Pobiera pogodę na jutro.
-        weather = get_tomorrow_weather(
-            station.latitude,
-            station.longitude,
-        )
+        latitude = station.latitude
+        longitude = station.longitude
 
-        if weather is None:
-            raise ValueError("Weather forecast unavailable")
+    db_time = perf_counter() - db_start
 
-    # Liczy prognozę PM10.
+    # Pobiera pogodę na jutro.
+    weather_start = perf_counter()
+
+    weather = get_tomorrow_weather(
+        latitude,
+        longitude,
+    )
+
+    weather_time = perf_counter() - weather_start
+
+    if weather is None:
+        raise ValueError("Weather forecast unavailable")
+
+    # Liczy prognozy.
+    prediction_start = perf_counter()
+
     pm10_forecast = predict_pollutant(
         model=model,
         feature_columns=feature_columns,
@@ -331,7 +346,6 @@ def predict_station_tomorrow(
         freshness=pm10_freshness,
     )
 
-    # Liczy prognozę PM2.5.
     pm25_forecast = predict_pollutant(
         model=model,
         feature_columns=feature_columns,
@@ -339,6 +353,19 @@ def predict_station_tomorrow(
         weather=weather,
         param="PM25",
         freshness=pm25_freshness,
+    )
+
+    prediction_time = perf_counter() - prediction_start
+
+    total_time = perf_counter() - total_start
+
+    print(
+        f"[forecast] station={station_id} "
+        f"model={model_time:.2f}s "
+        f"db={db_time:.2f}s "
+        f"weather={weather_time:.2f}s "
+        f"prediction={prediction_time:.2f}s "
+        f"total={total_time:.2f}s"
     )
 
     return {

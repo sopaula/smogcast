@@ -9,12 +9,14 @@ from smogcast.api.schemas import (
     HealthResponse,
     MeasurementResponse,
     StationResponse,
+    StatusResponse,
 )
 from smogcast.model.predict import (
     predict_station_tomorrow,
 )
 from smogcast.storage.db import SessionLocal
 from smogcast.storage.models import (
+    InitializationState,
     Measurement,
     Sensor,
     Station,
@@ -43,6 +45,25 @@ def health():
     return {
         "status": "ok",
     }
+
+
+# Zwraca czas ostatniego udanego odświeżenia.
+@router.get(
+    "/status",
+    response_model=StatusResponse,
+)
+def get_status():
+    with SessionLocal() as db:
+        state = db.get(
+            InitializationState,
+            "last_successful_refresh",
+        )
+
+        return {
+            "last_successful_refresh": (
+                state.completed_at if state is not None else None
+            ),
+        }
 
 
 # Zwraca stacje dostępne w Smogcast.
