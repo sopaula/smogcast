@@ -1,8 +1,8 @@
 import base64
 import os
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from time import perf_counter
 
 import altair as alt
 import httpx
@@ -272,15 +272,42 @@ def backend_param_name(
 # API
 
 
+# Ponawia żądanie przy chwilowym błędzie połączenia.
+def get_with_retry(
+    url,
+    *,
+    params=None,
+    timeout=30.0,
+    attempts=3,
+):
+    last_error = None
+
+    for attempt in range(attempts):
+        try:
+            response = httpx.get(
+                url,
+                params=params,
+                timeout=timeout,
+            )
+            response.raise_for_status()
+            return response
+
+        except httpx.HTTPError as error:
+            last_error = error
+
+            if attempt < attempts - 1:
+                time.sleep(2)
+
+    raise last_error
+
+
 # Pobiera listę stacji.
 @st.cache_data(ttl=60)
 def get_stations():
-    response = httpx.get(
+    response = get_with_retry(
         f"{API_URL}/stations",
-        timeout=10.0,
+        timeout=30.0,
     )
-
-    response.raise_for_status()
 
     return response.json()
 
@@ -288,12 +315,10 @@ def get_stations():
 # Pobiera status ostatniego odświeżenia danych.
 @st.cache_data(ttl=60)
 def get_app_status():
-    response = httpx.get(
+    response = get_with_retry(
         f"{API_URL}/status",
-        timeout=10.0,
+        timeout=30.0,
     )
-
-    response.raise_for_status()
 
     return response.json()
 
@@ -303,12 +328,10 @@ def get_app_status():
 def get_latest_measurements(
     station_id,
 ):
-    response = httpx.get(
+    response = get_with_retry(
         f"{API_URL}/stations/{station_id}/latest",
-        timeout=10.0,
+        timeout=30.0,
     )
-
-    response.raise_for_status()
 
     return response.json()
 
@@ -335,13 +358,11 @@ def get_measurements(
 
         params["date_from"] = date_from.isoformat()
 
-    response = httpx.get(
+    response = get_with_retry(
         f"{API_URL}/stations/{station_id}/measurements",
         params=params,
-        timeout=20.0,
+        timeout=30.0,
     )
-
-    response.raise_for_status()
 
     return response.json()
 
@@ -351,12 +372,10 @@ def get_measurements(
 def get_forecast(
     station_id,
 ):
-    response = httpx.get(
+    response = get_with_retry(
         f"{API_URL}/stations/{station_id}/forecast",
         timeout=60.0,
     )
-
-    response.raise_for_status()
 
     return response.json()
 
@@ -806,8 +825,6 @@ st.markdown(
 )
 
 
-forecast_start = perf_counter()
-
 try:
     forecast = get_forecast(station_id)
 
@@ -817,10 +834,6 @@ except httpx.HTTPError as exc:
     st.warning("Nie udało się pobrać prognozy.")
 
     st.caption(str(exc))
-
-print(
-    f"[dashboard] station={station_id} forecast={perf_counter() - forecast_start:.2f}s"
-)
 
 
 if forecast is not None:
