@@ -27,12 +27,6 @@ from smogcast.storage.models import (
 MODEL_PATH = Path("models/model_v2.joblib")
 
 
-ALARM_THRESHOLDS = {
-    "PM10": 50.0,
-    "PM25": 25.0,
-}
-
-
 # Zamienia nazwę parametru na format z bazy.
 def map_param(
     param,
@@ -345,16 +339,12 @@ def predict_pollutant(
 
     prediction = float(model.predict(X)[0])
 
-    threshold = ALARM_THRESHOLDS[param]
-
     return {
         "sensor_id": freshness["sensor_id"],
         "forecast_value": round(
             prediction,
             2,
         ),
-        "threshold": threshold,
-        "alarm": (prediction > threshold),
         "data_date": freshness["data_date"],
         "data_age_days": freshness["data_age_days"],
         "data_status": freshness["data_status"],

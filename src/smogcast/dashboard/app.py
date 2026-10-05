@@ -28,9 +28,22 @@ def get_logo_base64():
 logo_base64 = get_logo_base64()
 
 
-THRESHOLDS = {
-    "PM10": 50.0,
-    "PM25": 25.0,
+# Progi Polskiego Indeksu Jakości Powietrza.
+AIR_QUALITY_LEVELS = {
+    "PM10": [
+        (20.0, "Bardzo dobry", "card-very-good", [0, 180, 0]),
+        (50.0, "Dobry", "card-good", [100, 200, 0]),
+        (80.0, "Umiarkowany", "card-moderate", [255, 200, 0]),
+        (110.0, "Dostateczny", "card-sufficient", [255, 140, 0]),
+        (150.0, "Zły", "card-bad", [220, 0, 0]),
+    ],
+    "PM25": [
+        (13.0, "Bardzo dobry", "card-very-good", [0, 180, 0]),
+        (35.0, "Dobry", "card-good", [100, 200, 0]),
+        (55.0, "Umiarkowany", "card-moderate", [255, 200, 0]),
+        (75.0, "Dostateczny", "card-sufficient", [255, 140, 0]),
+        (110.0, "Zły", "card-bad", [220, 0, 0]),
+    ],
 }
 
 
@@ -102,19 +115,34 @@ div[data-testid="stToolbar"] svg {
     min-height: 190px;
 }
 
-.card-green {
-    background-color: rgba(46, 204, 113, 0.13);
-    border-left: 6px solid #2ecc71;
+.card-very-good {
+    background-color: rgba(0, 180, 0, 0.12);
+    border-left: 6px solid rgb(0, 180, 0);
 }
 
-.card-yellow {
-    background-color: rgba(241, 196, 15, 0.16);
-    border-left: 6px solid #f1c40f;
+.card-good {
+    background-color: rgba(100, 200, 0, 0.13);
+    border-left: 6px solid rgb(100, 200, 0);
 }
 
-.card-red {
-    background-color: rgba(231, 76, 60, 0.13);
-    border-left: 6px solid #e74c3c;
+.card-moderate {
+    background-color: rgba(255, 200, 0, 0.16);
+    border-left: 6px solid rgb(255, 200, 0);
+}
+
+.card-sufficient {
+    background-color: rgba(255, 140, 0, 0.15);
+    border-left: 6px solid rgb(255, 140, 0);
+}
+
+.card-bad {
+    background-color: rgba(220, 0, 0, 0.12);
+    border-left: 6px solid rgb(220, 0, 0);
+}
+
+.card-very-bad {
+    background-color: rgba(140, 0, 0, 0.14);
+    border-left: 6px solid rgb(140, 0, 0);
 }
 
 .card-param {
@@ -144,7 +172,8 @@ div[data-testid="stToolbar"] svg {
 
 .legend {
     display: flex;
-    gap: 20px;
+    flex-wrap: wrap;
+    gap: 18px;
     margin-top: 8px;
     margin-bottom: 10px;
     font-size: 14px;
@@ -163,16 +192,28 @@ div[data-testid="stToolbar"] svg {
     display: inline-block;
 }
 
-.dot-green {
-    background-color: #2ecc71;
+.dot-very-good {
+    background-color: rgb(0, 180, 0);
 }
 
-.dot-yellow {
-    background-color: #f1c40f;
+.dot-good {
+    background-color: rgb(100, 200, 0);
 }
 
-.dot-red {
-    background-color: #e74c3c;
+.dot-moderate {
+    background-color: rgb(255, 200, 0);
+}
+
+.dot-sufficient {
+    background-color: rgb(255, 140, 0);
+}
+
+.dot-bad {
+    background-color: rgb(220, 0, 0);
+}
+
+.dot-very-bad {
+    background-color: rgb(140, 0, 0);
 }
 
 .top-bar {
@@ -413,30 +454,23 @@ def get_forecast(
 # STATUS I KOLORY
 
 
-# Określa poziom względem progu.
+# Określa kategorię Polskiego Indeksu Jakości Powietrza.
 def get_status(
     value,
     param,
 ):
-    threshold = THRESHOLDS[param]
-
-    warning_level = threshold * 0.8
-
-    if value > threshold:
-        return {
-            "name": "Przekroczenie progu",
-            "class": "card-red",
-        }
-
-    if value >= warning_level:
-        return {
-            "name": "Wartość zbliżona do progu",
-            "class": "card-yellow",
-        }
+    for threshold, name, card_class, color in AIR_QUALITY_LEVELS[param]:
+        if value <= threshold:
+            return {
+                "name": name,
+                "class": card_class,
+                "color": color,
+            }
 
     return {
-        "name": "Poziom poniżej progu",
-        "class": "card-green",
+        "name": "Bardzo zły",
+        "class": "card-very-bad",
+        "color": [140, 0, 0],
     }
 
 
@@ -452,29 +486,10 @@ def get_pollutant_color(
             128,
         ]
 
-    threshold = THRESHOLDS[param]
-
-    warning_level = threshold * 0.8
-
-    if value > threshold:
-        return [
-            220,
-            0,
-            0,
-        ]
-
-    if value >= warning_level:
-        return [
-            255,
-            200,
-            0,
-        ]
-
-    return [
-        0,
-        180,
-        0,
-    ]
+    return get_status(
+        value,
+        param,
+    )["color"]
 
 
 # KARTY
@@ -492,7 +507,6 @@ def show_measurement_card(
         param,
     )
 
-    threshold = THRESHOLDS[param]
     display_param = display_param_name(param)
 
     st.markdown(
@@ -506,7 +520,7 @@ def show_measurement_card(
         {status["name"]}
     </div>
     <div class="card-info">
-        Próg: {threshold:.0f} µg/m³<br>
+        Polski Indeks Jakości Powietrza<br>
         Pomiar: {format_timestamp(timestamp)}<br>
         Sensor: {sensor_id}
     </div>
@@ -528,7 +542,6 @@ def show_forecast_card(
         param,
     )
 
-    threshold = forecast["threshold"]
     display_param = display_param_name(param)
 
     st.markdown(
@@ -542,7 +555,7 @@ def show_forecast_card(
         {status["name"]}
     </div>
     <div class="card-info">
-        Próg: {threshold:.0f} µg/m³<br>
+        Polski Indeks Jakości Powietrza<br>
         Dane do: {format_date(forecast["data_date"])}<br>
         Coverage 7 dni: {forecast["coverage_7d"]:.1f}%<br>
         Sensor: {forecast["sensor_id"]}
@@ -600,6 +613,10 @@ def prepare_map_data(
             continue
 
         value = latest_measurement["value"]
+        status = get_status(
+            value,
+            param,
+        )
 
         map_data.append(
             {
@@ -610,10 +627,8 @@ def prepare_map_data(
                 "lon": station["longitude"],
                 "value": value,
                 "timestamp": format_timestamp(latest_measurement["timestamp"]),
-                "color": get_pollutant_color(
-                    value,
-                    param,
-                ),
+                "status": status["name"],
+                "color": status["color"],
             }
         )
 
@@ -728,6 +743,7 @@ if map_data:
             "{name}<br/><br/>"
             f"{map_param_display}: "
             "<b>{value} µg/m³</b><br/>"
+            "Jakość: <b>{status}</b><br/>"
             "Pomiar: {timestamp}"
         )
     }
@@ -750,16 +766,28 @@ if map_data:
         """
 <div class="legend">
     <div class="legend-item">
-        <span class="legend-dot dot-green"></span>
-        poniżej 80% progu
+        <span class="legend-dot dot-very-good"></span>
+        bardzo dobry
     </div>
     <div class="legend-item">
-        <span class="legend-dot dot-yellow"></span>
-        blisko progu
+        <span class="legend-dot dot-good"></span>
+        dobry
     </div>
     <div class="legend-item">
-        <span class="legend-dot dot-red"></span>
-        przekroczenie progu
+        <span class="legend-dot dot-moderate"></span>
+        umiarkowany
+    </div>
+    <div class="legend-item">
+        <span class="legend-dot dot-sufficient"></span>
+        dostateczny
+    </div>
+    <div class="legend-item">
+        <span class="legend-dot dot-bad"></span>
+        zły
+    </div>
+    <div class="legend-item">
+        <span class="legend-dot dot-very-bad"></span>
+        bardzo zły
     </div>
 </div>
         """,
@@ -1145,6 +1173,9 @@ st.markdown(
 <div class="source-bar">
     Dane o jakości powietrza:
     <b>Główny Inspektorat Ochrony Środowiska (GIOŚ)</b>
+    &nbsp;&nbsp;|&nbsp;&nbsp;
+    Indeks jakości:
+    <b>Polski Indeks Jakości Powietrza</b>
     &nbsp;&nbsp;|&nbsp;&nbsp;
     Dane meteorologiczne:
     <b>Open-Meteo</b>
