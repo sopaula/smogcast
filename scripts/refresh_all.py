@@ -395,7 +395,10 @@ def refresh_all_stations():
         raise RuntimeError(f"Nie udało się odświeżyć {failed} stacji GIOŚ.")
 
     if weather_failed > 0:
-        raise RuntimeError(f"Nie udało się pobrać {weather_failed} prognoz pogody.")
+        print(
+            f"Uwaga: nie udało się pobrać {weather_failed} prognoz pogody. "
+            "Brakujące prognozy zostaną pobrane na żądanie."
+        )
 
     save_last_successful_refresh()
 
