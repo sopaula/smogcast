@@ -1,6 +1,6 @@
 # SmogCast
 
-SmogCast is an air quality monitoring and forecasting application for selected stations in Poland.
+SmogCast is an air quality monitoring and forecasting application for selected monitoring stations in Poland.
 
 The application combines air quality data from GIOŚ with weather data from Open-Meteo and provides current measurements, historical data and next-day PM10 and PM2.5 forecasts.
 
@@ -14,7 +14,9 @@ The application combines air quality data from GIOŚ with weather data from Open
 - automatic refresh of recent measurements,
 - Streamlit dashboard,
 - FastAPI backend,
-- Docker-based application deployment,
+- SQLite support for quick local development,
+- PostgreSQL support for Docker and production,
+- Docker-based local environment,
 - automated CI checks with GitHub Actions,
 - daily production data refresh,
 - deployment in Microsoft Azure.
@@ -42,10 +44,11 @@ Main application flow:
 6. FastAPI exposes application data through REST endpoints,
 7. Streamlit communicates with the API and displays the dashboard.
 
-The project supports two database configurations:
+The project supports:
 
-- SQLite for local development,
-- PostgreSQL for the deployed Azure environment.
+- SQLite for quick local development,
+- PostgreSQL for the Docker environment,
+- Azure Database for PostgreSQL in production.
 
 ## Data sources
 
@@ -68,6 +71,60 @@ Historical and forecast weather data are obtained from Open-Meteo.
 
 Open-Meteo data are provided under the CC BY 4.0 licence and require attribution.
 
+## Historical dataset
+
+SmogCast uses a prepared historical dataset covering the period from August 2023 to August 2026.
+
+The prepared dataset is published as the GitHub Release:
+
+```text
+data-v1
+```
+
+It contains:
+
+```text
+gios_pm_measurements_3y.parquet
+open_meteo_weather_3y.parquet
+dataset_metadata.json
+```
+
+Dataset metadata are also stored in the repository:
+
+```text
+data/dataset_metadata.json
+```
+
+The metadata file contains:
+
+- dataset version,
+- date range,
+- data sources,
+- timezone,
+- number of records,
+- processing version,
+- SHA256 checksums.
+
+Downloaded Parquet files are verified against their SHA256 checksums before use.
+
+### Dataset preparation flow
+
+When historical data are required, `scripts/prepare_assets.py` uses the following strategy:
+
+```text
+local Parquet files
+        ↓
+if missing
+        ↓
+GitHub Release data-v1
+        ↓
+if unavailable
+        ↓
+full rebuild from GIOŚ and Open-Meteo
+```
+
+This provides a fast default startup while preserving the ability to reproduce the dataset directly from the original sources.
+
 ## Requirements
 
 ### Local development
@@ -89,36 +146,38 @@ git clone https://github.com/sopaula/smogcast.git
 cd smogcast
 ```
 
-For local development, install dependencies:
+Install dependencies:
 
 ```bash
 uv sync
 ```
 
-## Running the application locally
+## Quick local development
 
-Run:
+For quick local development, SmogCast can be run with SQLite:
 
 ```bash
-PYTHONPATH=src uv run python scripts/run_app.py
+DATABASE_URL=sqlite:///smogcast.db PYTHONPATH=src uv run python scripts/run_app.py
 ```
 
-On the first run, SmogCast automatically:
+The startup script:
 
-1. downloads the required historical GIOŚ and Open-Meteo data,
-2. initializes the local SQLite database,
-3. creates daily aggregates,
-4. trains the forecasting model if it does not exist,
-5. downloads the latest measurements,
-6. starts the API and dashboard.
+1. checks historical data,
+2. downloads prepared Parquet files from GitHub Release if necessary,
+3. falls back to a full rebuild if the prepared dataset is unavailable,
+4. initializes the SQLite database,
+5. creates daily aggregates,
+6. trains the forecasting model if necessary,
+7. refreshes recent data,
+8. starts FastAPI and Streamlit.
 
-The first startup may take longer because historical data for the period from August 2023 to August 2026 must be downloaded and processed.
+Existing historical files, completed initialization steps and the trained model are reused on subsequent runs.
 
-On subsequent runs, existing historical files, completed initialization steps and the trained model are reused.
+This mode is intended mainly for quick development and debugging.
 
 ## Running with Docker
 
-The recommended way to run the complete application is Docker Compose.
+Docker Compose provides the complete local environment using PostgreSQL.
 
 Start all services:
 
@@ -128,19 +187,46 @@ docker compose up --build
 
 Docker Compose starts:
 
+- `postgres` – local PostgreSQL database,
 - `init` – prepares historical data, initializes the database and trains the model if necessary,
 - `updater` – periodically refreshes current data,
 - `api` – FastAPI backend,
 - `dashboard` – Streamlit frontend.
 
-Historical data, the SQLite database and the trained model are stored in Docker volumes, so they are preserved between container restarts.
+On a fresh environment:
 
-The initialization process is resumable and is skipped when the required data and model already exist.
+```text
+Docker Compose
+      ↓
+PostgreSQL
+      ↓
+prepare_assets.py
+      ↓
+GitHub Release data-v1
+      ↓
+Parquet verification
+      ↓
+database initialization
+      ↓
+API + dashboard
+```
+
+If the GitHub Release is unavailable, the historical dataset can be rebuilt directly from GIOŚ and Open-Meteo.
+
+PostgreSQL data, historical assets and the trained model are stored in persistent Docker volumes.
+
+The initialization process is resumable and previously completed steps are skipped when possible.
 
 To stop the application:
 
 ```bash
 docker compose down
+```
+
+To stop the application and remove local Docker volumes:
+
+```bash
+docker compose down -v
 ```
 
 To check running services:
@@ -169,43 +255,89 @@ API documentation:
 http://localhost:8000/docs
 ```
 
-The API includes a health check endpoint.
+Health endpoint:
 
-The dashboard starts only after the API is reported as healthy.
+```text
+/health
+```
+
+Readiness endpoint:
+
+```text
+/ready
+```
+
+The dashboard starts after the API is reported as healthy.
 
 ## Forecasting
 
 The forecasting model predicts next-day PM10 and PM2.5 concentrations using historical pollution measurements and weather data.
 
-The production model is stored locally as:
+The production model is stored as:
 
 ```text
 models/model_v2.joblib
 ```
 
-If the file does not exist, it is trained automatically during initialization.
+If the model does not exist during local initialization, it is trained automatically.
+
+The model uses features based on:
+
+- previous PM measurements,
+- rolling PM averages,
+- calendar variables,
+- temperature,
+- wind speed,
+- relative humidity.
 
 Forecasts also include a 7-day data coverage quality indicator:
 
 - `>= 75%` – good,
 - `50–75%` – warning,
-- `< 50%` – critical.
+- `< 50%` – low coverage warning.
 
-Coverage is used as a quality indicator and is not an input feature of the production model.
+Coverage is used as a data-quality indicator and is not an input feature of the production model.
+
+## Weather forecast cache
+
+Weather forecasts used for next-day PM predictions are stored in the database.
+
+The refresh process downloads weather forecasts for the required target date and stores:
+
+- station identifier,
+- target date,
+- temperature,
+- wind speed,
+- humidity,
+- fetch timestamp.
+
+Forecast requests first use the stored weather forecast.
+
+If the required forecast is missing, the application can fetch it from Open-Meteo as a fallback and persist it in the database.
+
+This avoids making an external weather API request during normal forecast requests.
 
 ## Data updates
 
-Recent measurements are downloaded from GIOŚ during the refresh process.
-
 ### Local and Docker
 
-The Docker `updater` service periodically runs the refresh process and checks for new measurements.
+The Docker `updater` service periodically runs:
 
-Sensors with incomplete archival data are marked as stale and can be retried after 24 hours.
+```bash
+python scripts/refresh_all.py
+```
+
+The refresh process updates:
+
+- recent PM10 and PM2.5 measurements,
+- daily aggregates,
+- next-day weather forecasts.
+
+Partial failures are reported and do not silently mark the whole refresh as successful.
 
 ### Production
 
-The deployed application uses a scheduled GitHub Actions workflow.
+Production data are updated using a scheduled GitHub Actions workflow.
 
 The workflow runs:
 
@@ -213,37 +345,55 @@ The workflow runs:
 PYTHONPATH=src uv run python scripts/refresh_all.py
 ```
 
-once per day and updates the production PostgreSQL database with recent data.
+once per day and updates the production PostgreSQL database.
+
+The timestamp of the last fully successful refresh is stored in the database and exposed through the API.
 
 ## Database
 
-SmogCast supports two database configurations.
+SmogCast supports SQLite and PostgreSQL through SQLAlchemy.
 
-### Local development
+The database connection is selected using:
 
-SQLite is used by default.
+```text
+DATABASE_URL
+```
 
-If the `DATABASE_URL` environment variable is not provided, the application automatically falls back to:
+### SQLite
+
+SQLite is intended for quick local development.
+
+If `DATABASE_URL` is not provided, the application can fall back to:
 
 ```text
 sqlite:///smogcast.db
 ```
 
-The local database uses:
+SQLite-specific configuration includes:
 
 - WAL mode,
-- `busy_timeout`,
-- resumable initialization.
+- `busy_timeout`.
 
-When running with Docker Compose, the database is stored in a persistent Docker volume.
+### Local PostgreSQL
 
-The local database file is not stored in the repository.
+Docker Compose runs a local PostgreSQL instance.
 
-### Production
+This environment is used to test the application against the same database engine used in production.
 
-The deployed version uses Azure Database for PostgreSQL.
+It allows PostgreSQL-specific behavior such as:
 
-The production database connection is provided through the `DATABASE_URL` environment variable and is stored as a secret in the Azure environment.
+- conflict handling,
+- upserts,
+- timezone-aware timestamps,
+- schema initialization
+
+to be tested locally before deployment.
+
+### Production PostgreSQL
+
+The deployed application uses Azure Database for PostgreSQL.
+
+The production connection string is provided through the `DATABASE_URL` environment variable and is not stored in the repository.
 
 ## Deployment
 
@@ -260,30 +410,23 @@ The deployment uses:
 
 The API and dashboard are deployed as separate Container Apps.
 
-Both applications are configured with:
-
-- `minReplicas = 0`,
-- `maxReplicas = 1`.
-
-This allows the applications to scale down when they are not being used.
-
-The API uses a health check endpoint:
+Production flow:
 
 ```text
-/health
+GIOŚ / Open-Meteo
+        ↓
+GitHub Actions
+        ↓
+refresh_all.py
+        ↓
+Azure PostgreSQL
+        ↓
+FastAPI
+        ↓
+Streamlit
 ```
 
-Public dashboard:
-
-```text
-...
-```
-
-## Known limitations
-
-The first forecast request for a station may take longer because current weather forecast data are fetched from an external API.
-
-In some cases, the first forecast request may time out. Retrying the request usually resolves the issue.
+The Azure services use the existing PostgreSQL database and do not rebuild the historical dataset during normal application startup.
 
 ## Tests
 
@@ -299,19 +442,24 @@ Run Ruff:
 uv run ruff check .
 ```
 
+Format code:
+
+```bash
+uv run ruff format .
+```
+
 ## GitHub Actions
 
-The repository uses GitHub Actions for continuous integration and automatic data refresh.
+The repository uses GitHub Actions for continuous integration and production data refresh.
 
 ### Continuous Integration
 
-For every Pull Request to `main`, the CI workflow runs:
+For every Pull Request to `main`, the CI workflow runs automated project checks including:
 
 - Ruff,
-- pytest,
-- Docker image build.
+- pytest.
 
-A Pull Request must pass the required CI checks before it can be merged into `main`.
+A Pull Request must pass the required checks before it can be merged into `main`.
 
 ### Daily ingest
 
@@ -323,7 +471,7 @@ It:
 2. installs Python and project dependencies,
 3. connects to the production PostgreSQL database,
 4. runs `scripts/refresh_all.py`,
-5. updates recent measurement and weather data.
+5. updates recent measurements, daily aggregates and weather forecasts.
 
 The workflow can also be started manually from GitHub Actions.
 
@@ -335,6 +483,8 @@ smogcast/
 │   └── workflows/
 │       ├── ci.yml
 │       └── ingest.yml
+├── data/
+│   └── dataset_metadata.json
 ├── scripts/
 │   ├── prepare_assets.py
 │   ├── init_db.py
