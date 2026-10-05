@@ -3,7 +3,7 @@ from datetime import UTC, date, datetime
 from sqlalchemy import select
 
 from smogcast.storage.db import SessionLocal, create_tables, engine
-from smogcast.storage.models import InitializationState, WeatherForecast
+from smogcast.storage.models import InitializationState, Station, WeatherForecast
 
 
 def test_postgres_connection_and_tables():
@@ -43,6 +43,15 @@ def test_weather_forecast_roundtrip():
     target_date = date(2099, 1, 1)
 
     with SessionLocal() as db:
+        station = Station(
+            id=999999,
+            name="Test Station",
+            city="Test City",
+            latitude=50.0,
+            longitude=19.0,
+        )
+        db.merge(station)
+
         forecast = WeatherForecast(
             station_id=999999,
             target_date=target_date,
