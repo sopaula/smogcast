@@ -1,6 +1,7 @@
 import base64
 import os
 import time
+
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -55,7 +56,6 @@ st.set_page_config(
 
 
 # STYLE
-
 
 st.markdown(
     """
@@ -277,6 +277,65 @@ div[data-testid="stToolbar"] svg {
     z-index: 9999;
 }
 
+@media (max-width: 768px) {
+    .block-container {
+        padding-top: 105px;
+        padding-left: 1rem;
+        padding-right: 1rem;
+        padding-bottom: 7rem;
+        max-width: 100%;
+    }
+
+    .top-bar {
+        height: auto;
+        min-height: 78px;
+        padding: 10px 55px 10px 14px;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .top-bar-logo {
+        font-size: 20px;
+        gap: 8px;
+    }
+
+    .top-bar-logo-img {
+        width: 30px;
+        height: 30px;
+    }
+
+    .top-bar-subtitle {
+        font-size: 11px;
+        line-height: 1.3;
+        max-width: 160px;
+        text-align: right;
+    }
+
+    .section-title {
+        font-size: 22px;
+    }
+
+    .source-bar {
+        font-size: 11px;
+        line-height: 1.4;
+        padding: 8px 12px;
+    }
+
+    .legend {
+        gap: 10px;
+        font-size: 12px;
+    }
+
+    .measurement-card {
+        padding: 18px;
+        min-height: 170px;
+    }
+
+    .card-value {
+        font-size: 28px;
+    }
+}
+
 </style>
     """,
     unsafe_allow_html=True,
@@ -287,18 +346,14 @@ div[data-testid="stToolbar"] svg {
 
 
 # Formatuje datę i godzinę.
-def format_timestamp(
-    timestamp_text,
-):
+def format_timestamp(timestamp_text):
     timestamp = pd.to_datetime(timestamp_text)
 
     return timestamp.strftime("%d.%m.%Y, %H:%M")
 
 
 # Formatuje czas odświeżenia w polskiej strefie czasowej.
-def format_refresh_timestamp(
-    timestamp_text,
-):
+def format_refresh_timestamp(timestamp_text):
     timestamp = pd.to_datetime(
         timestamp_text,
         utc=True,
@@ -312,18 +367,14 @@ def format_refresh_timestamp(
 
 
 # Formatuje datę.
-def format_date(
-    date_text,
-):
+def format_date(date_text):
     formatted_date = pd.to_datetime(date_text)
 
     return formatted_date.strftime("%d.%m.%Y")
 
 
 # Zamienia techniczną nazwę parametru na nazwę wyświetlaną.
-def display_param_name(
-    param,
-):
+def display_param_name(param):
     if param == "PM25":
         return "PM2.5"
 
@@ -331,9 +382,7 @@ def display_param_name(
 
 
 # Zamienia nazwę wyświetlaną na format używany przez backend.
-def backend_param_name(
-    param,
-):
+def backend_param_name(param):
     if param == "PM2.5":
         return "PM25"
 
@@ -360,7 +409,9 @@ def get_with_retry(
                 params=params,
                 timeout=timeout,
             )
+
             response.raise_for_status()
+
             return response
 
         except httpx.HTTPError as error:
@@ -513,12 +564,8 @@ def show_measurement_card(
         f"""
 <div class="measurement-card {status["class"]}">
     <div class="card-param">{display_param}</div>
-    <div class="card-value">
-        {value:.2f} µg/m³
-    </div>
-    <div class="card-status">
-        {status["name"]}
-    </div>
+    <div class="card-value">{value:.2f} µg/m³</div>
+    <div class="card-status">{status["name"]}</div>
     <div class="card-info">
         Polski Indeks Jakości Powietrza<br>
         Pomiar: {format_timestamp(timestamp)}<br>
@@ -548,14 +595,10 @@ def show_forecast_card(
         f"""
 <div class="measurement-card {status["class"]}">
     <div class="card-param">{display_param}</div>
-    <div class="card-value">
-        {value:.2f} µg/m³
-    </div>
-    <div class="card-status">
-        {status["name"]}
-    </div>
+    <div class="card-value">{value:.2f} µg/m³</div>
+    <div class="card-status">{status["name"]}</div>
     <div class="card-info">
-        Polski Indeks Jakości Powietrza<br>
+        Prognozowane średnie dobowe stężenie<br>
         Dane do: {format_date(forecast["data_date"])}<br>
         Coverage 7 dni: {forecast["coverage_7d"]:.1f}%<br>
         Sensor: {forecast["sensor_id"]}
@@ -613,6 +656,7 @@ def prepare_map_data(
             continue
 
         value = latest_measurement["value"]
+
         status = get_status(
             value,
             param,
@@ -642,10 +686,7 @@ st.markdown(
     f"""
 <div class="top-bar">
     <div class="top-bar-logo">
-        <img
-            src="data:image/png;base64,{logo_base64}"
-            class="top-bar-logo-img"
-        >
+        <img src="data:image/png;base64,{logo_base64}" class="top-bar-logo-img">
         <span>SmogCast</span>
     </div>
     <div class="top-bar-subtitle">
@@ -724,7 +765,10 @@ if map_data:
         data=map_data,
         get_position="[lon, lat]",
         get_fill_color="color",
-        get_radius=10000,
+        get_radius=9,
+        radius_units="pixels",
+        radius_min_pixels=7,
+        radius_max_pixels=12,
         pickable=True,
     )
 
@@ -1055,7 +1099,7 @@ if history:
                 "[month(datum.value)] + ' ' + "
                 "year(datum.value)"
             ),
-            labelAngle=0,
+            labelAngle=-45,
         )
 
     else:
@@ -1068,7 +1112,7 @@ if history:
                 "'Wrz', 'Paź', 'Lis', 'Gru']"
                 "[month(datum.value)]"
             ),
-            labelAngle=0,
+            labelAngle=-45,
         )
 
     # Bazowy wykres.
@@ -1154,7 +1198,7 @@ if history:
         selectors,
         points,
         rules,
-    ).properties(height=350)
+    ).properties(height=320)
 
     st.altair_chart(
         chart,
@@ -1173,9 +1217,6 @@ st.markdown(
 <div class="source-bar">
     Dane o jakości powietrza:
     <b>Główny Inspektorat Ochrony Środowiska (GIOŚ)</b>
-    &nbsp;&nbsp;|&nbsp;&nbsp;
-    Indeks jakości:
-    <b>Polski Indeks Jakości Powietrza</b>
     &nbsp;&nbsp;|&nbsp;&nbsp;
     Dane meteorologiczne:
     <b>Open-Meteo</b>
