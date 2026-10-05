@@ -17,8 +17,7 @@ class StationResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# Pojedynczy pomiar
-# zwracany przez API
+# Pojedynczy pomiar zwracany przez API.
 class MeasurementResponse(BaseModel):
     sensor_id: int
     param: str
@@ -30,8 +29,6 @@ class MeasurementResponse(BaseModel):
 class PollutantForecastResponse(BaseModel):
     sensor_id: int
     forecast_value: float
-    threshold: float
-    alarm: bool
     data_date: date
     data_age_days: int
     data_status: str
