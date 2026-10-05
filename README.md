@@ -4,6 +4,8 @@ SmogCast is an air quality monitoring and forecasting application for selected m
 
 The application combines air quality data from GIOŚ with weather data from Open-Meteo and provides current measurements, historical data and next-day PM10 and PM2.5 forecasts.
 
+**Live demo:** [SmogCast Dashboard](https://smogcast-dashboard.victorioussmoke-b065b7f6.polandcentral.azurecontainerapps.io/)
+
 ## Features
 
 - current PM10 and PM2.5 measurements,
