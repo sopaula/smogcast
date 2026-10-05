@@ -46,9 +46,9 @@ def test_weather_forecast_roundtrip():
         forecast = WeatherForecast(
             station_id=999999,
             target_date=target_date,
-            temperature_2m=10.5,
-            relative_humidity_2m=70.0,
-            wind_speed_10m=4.2,
+            temp_c=10.5,
+            humidity=70.0,
+            wind_ms=4.2,
             fetched_at=datetime.now(UTC),
         )
         db.merge(forecast)
@@ -63,5 +63,7 @@ def test_weather_forecast_roundtrip():
         )
 
         assert saved is not None
-        assert saved.temperature_2m == 10.5
+        assert saved.temp_c == 10.5
+        assert saved.humidity == 70.0
+        assert saved.wind_ms == 4.2
         assert saved.fetched_at.tzinfo is not None
