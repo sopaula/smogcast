@@ -362,11 +362,10 @@ div[data-testid="stExpander"] details summary {
         padding: 0 140px 0 40px;
         box-sizing: border-box;
 
-        background-color: #0e1117 !important;
-        opacity: 1 !important;
+        background-color: var(--background-color) !important;
 
-        border-bottom: 1px solid #262730;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+        border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.10);
     }
 
     .top-bar-logo {
@@ -376,12 +375,18 @@ div[data-testid="stExpander"] details summary {
 
         font-size: 25px;
         font-weight: 700;
-        color: #f5f5f5;
+        color: var(--text-color) !important;
+    }
+
+    .top-bar-logo-img {
+        width: 38px;
+        height: 38px;
+        object-fit: contain;
     }
 
     .top-bar-subtitle {
         font-size: 14px;
-        color: #f5f5f5;
+        color: var(--text-color) !important;
         opacity: 0.68;
         font-weight: 400;
     }
