@@ -306,14 +306,23 @@ Checks whether the API, database and model are ready to serve requests.
 
 The Streamlit dashboard allows the user to:
 
-- view monitoring stations on a map,
+- view monitoring stations on an interactive map,
 - switch between PM10 and PM2.5,
-- select a station,
+- select a station either from the station list or directly from the map,
 - view latest measurements,
 - view next-day forecasts,
-- view historical measurements,
+- view historical measurements and basic statistics,
 - see data-quality warnings,
 - switch between light and dark mode.
+
+The dashboard is divided into two tabs:
+
+- **Current data** – contains station selection, latest measurements, next-day forecasts and the interactive map,
+- **Measurement history** – contains historical charts, time-range selection and summary statistics.
+
+Historical measurement data are loaded only when the user opens the **Measurement history** tab. This avoids unnecessary API requests during the initial dashboard load and improves startup performance.
+
+The map keeps its current position and zoom level when the selected station changes. Station selection from the map is synchronized with the station selector.
 
 Air quality is interpreted using official GIOŚ air quality thresholds.
 

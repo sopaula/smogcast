@@ -327,6 +327,14 @@ The application is deployed in Microsoft Azure using:
 
 Both the API and dashboard run as separate Container Apps.
 
+### Dashboard performance and interaction improvements
+
+The dashboard was reorganized into separate tabs for current data and measurement history.
+
+Historical measurements are loaded only when the user opens the history tab, reducing unnecessary API requests during the initial page load.
+
+Station selection can be performed either from the station selector or directly from the interactive map. The map preserves its current zoom and position when the selected station changes.
+
 ## 5. Intentionally Deferred Improvements
 
 The following improvements were consciously left outside the current project scope.

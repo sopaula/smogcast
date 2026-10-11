@@ -26,7 +26,8 @@ The goal of the SmogCast MVP is to provide users with a simple next-day forecast
 - selection of supported monitoring stations
 - latest PM10 and PM2.5 measurements
 - historical measurement charts
-- station map
+- interactive station map with station selection
+- tab-based dashboard with lazy loading of historical measurements
 - air quality assessment based on GIOŚ thresholds
 - use of historical GIOŚ data
 - use of Open-Meteo weather data
