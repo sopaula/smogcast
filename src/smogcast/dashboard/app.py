@@ -1,7 +1,6 @@
 import base64
 import os
 import time
-
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -17,6 +16,19 @@ API_URL = os.getenv(
     "http://127.0.0.1:8000",
 )
 
+APP_ENV = os.getenv("APP_ENV", "local")
+IS_PRODUCTION = APP_ENV == "production"
+
+if IS_PRODUCTION:
+    top_bar_background = "var(--background-color)"
+    top_bar_text = "var(--text-color)"
+    top_bar_border = "rgba(128, 128, 128, 0.25)"
+else:
+    top_bar_background = "#0e1117"
+    top_bar_text = "#f5f5f5"
+    top_bar_border = "#262730"
+
+
 LOGO_PATH = Path(__file__).parent / "assets" / "logo.png"
 
 
@@ -29,7 +41,6 @@ def get_logo_base64():
 logo_base64 = get_logo_base64()
 
 
-# Progi Polskiego Indeksu Jakości Powietrza.
 AIR_QUALITY_LEVELS = {
     "PM10": [
         (20.0, "Bardzo dobry", "card-very-good", [0, 180, 0]),
@@ -56,6 +67,20 @@ st.set_page_config(
 
 
 # STYLE
+
+
+st.markdown(
+    f"""
+<style>
+:root {{
+    --top-bar-background: {top_bar_background};
+    --top-bar-text: {top_bar_text};
+    --top-bar-border: {top_bar_border};
+}}
+</style>
+    """,
+    unsafe_allow_html=True,
+)
 
 
 st.markdown(
@@ -251,10 +276,10 @@ div[data-testid="stToolbar"] svg {
     padding: 0 140px 0 40px;
     box-sizing: border-box;
 
-    background-color: #0e1117 !important;
+    background-color: var(--top-bar-background) !important;
     opacity: 1 !important;
 
-    border-bottom: 1px solid #262730;
+    border-bottom: 1px solid var(--top-bar-border);
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
 }
 
@@ -265,7 +290,7 @@ div[data-testid="stToolbar"] svg {
 
     font-size: 25px;
     font-weight: 700;
-    color: #f5f5f5;
+    color: var(--top-bar-text) !important;
 }
 
 .top-bar-logo-img {
@@ -276,7 +301,7 @@ div[data-testid="stToolbar"] svg {
 
 .top-bar-subtitle {
     font-size: 14px;
-    color: #f5f5f5;
+    color: var(--top-bar-text) !important;
     opacity: 0.68;
     font-weight: 400;
 }
@@ -362,9 +387,9 @@ div[data-testid="stExpander"] details summary {
         padding: 0 140px 0 40px;
         box-sizing: border-box;
 
-        background-color: var(--background-color) !important;
+        background-color: var(--top-bar-background) !important;
 
-        border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+        border-bottom: 1px solid var(--top-bar-border);
         box-shadow: 0 2px 12px rgba(0, 0, 0, 0.10);
     }
 
@@ -375,7 +400,7 @@ div[data-testid="stExpander"] details summary {
 
         font-size: 25px;
         font-weight: 700;
-        color: var(--text-color) !important;
+        color: var(--top-bar-text) !important;
     }
 
     .top-bar-logo-img {
@@ -386,7 +411,7 @@ div[data-testid="stExpander"] details summary {
 
     .top-bar-subtitle {
         font-size: 14px;
-        color: var(--text-color) !important;
+        color: var(--top-bar-text) !important;
         opacity: 0.68;
         font-weight: 400;
     }
@@ -440,7 +465,6 @@ div[data-testid="stExpander"] details summary {
 # FORMATOWANIE
 
 
-# Formatuje datę i godzinę.
 def format_timestamp(timestamp_text):
     timestamp = pd.to_datetime(
         timestamp_text,
@@ -452,7 +476,6 @@ def format_timestamp(timestamp_text):
     return timestamp.strftime("%d.%m.%Y, %H:%M")
 
 
-# Formatuje czas odświeżenia.
 def format_refresh_timestamp(timestamp_text):
     timestamp = pd.to_datetime(
         timestamp_text,
@@ -464,14 +487,12 @@ def format_refresh_timestamp(timestamp_text):
     return timestamp.strftime("%d.%m.%Y, %H:%M")
 
 
-# Formatuje datę.
 def format_date(date_text):
     formatted_date = pd.to_datetime(date_text)
 
     return formatted_date.strftime("%d.%m.%Y")
 
 
-# Zwraca wiek pomiaru.
 def get_measurement_age(timestamp_text):
     timestamp = pd.to_datetime(
         timestamp_text,
@@ -500,7 +521,6 @@ def get_measurement_age(timestamp_text):
     return f"{days} dni temu"
 
 
-# Sprawdza, czy pomiar jest stary.
 def is_stale_measurement(timestamp_text):
     timestamp = pd.to_datetime(
         timestamp_text,
@@ -512,7 +532,6 @@ def is_stale_measurement(timestamp_text):
     return age > pd.Timedelta(days=2)
 
 
-# Zamienia nazwę parametru na nazwę wyświetlaną.
 def display_param_name(param):
     if param == "PM25":
         return "PM2.5"
@@ -520,7 +539,6 @@ def display_param_name(param):
     return param
 
 
-# Zamienia nazwę wyświetlaną na format backendu.
 def backend_param_name(param):
     if param == "PM2.5":
         return "PM25"
@@ -531,7 +549,6 @@ def backend_param_name(param):
 # API
 
 
-# Ponawia żądanie przy chwilowym błędzie.
 def get_with_retry(
     url,
     *,
@@ -562,7 +579,6 @@ def get_with_retry(
     raise last_error
 
 
-# Pobiera listę stacji.
 @st.cache_data(ttl=60)
 def get_stations():
     response = get_with_retry(
@@ -573,7 +589,6 @@ def get_stations():
     return response.json()
 
 
-# Pobiera status ostatniego odświeżenia.
 @st.cache_data(ttl=60)
 def get_app_status():
     response = get_with_retry(
@@ -584,7 +599,6 @@ def get_app_status():
     return response.json()
 
 
-# Pobiera najnowsze pomiary.
 @st.cache_data(ttl=60)
 def get_latest_measurements(station_id):
     response = get_with_retry(
@@ -595,7 +609,6 @@ def get_latest_measurements(station_id):
     return response.json()
 
 
-# Pobiera historię pomiarów.
 @st.cache_data(ttl=60)
 def get_measurements(
     station_id,
@@ -624,7 +637,6 @@ def get_measurements(
     return response.json()
 
 
-# Pobiera prognozę na jutro.
 @st.cache_data(ttl=300)
 def get_forecast(station_id):
     response = get_with_retry(
@@ -638,7 +650,6 @@ def get_forecast(station_id):
 # STATUS I KOLORY
 
 
-# Określa kategorię jakości powietrza.
 def get_status(
     value,
     param,
@@ -661,7 +672,6 @@ def get_status(
 # KARTY
 
 
-# Wyświetla kartę pomiaru.
 def show_measurement_card(
     param,
     value,
@@ -691,7 +701,6 @@ def show_measurement_card(
     )
 
 
-# Wyświetla kartę prognozy.
 def show_forecast_card(
     param,
     forecast,
@@ -726,7 +735,6 @@ def show_forecast_card(
 # MAPA
 
 
-# Pobiera pomiar wybranego parametru.
 def get_latest_pollutant(
     station_id,
     param,
@@ -740,7 +748,6 @@ def get_latest_pollutant(
     return None
 
 
-# Przygotowuje dane do mapy.
 def prepare_map_data(
     stations,
     param,
@@ -795,7 +802,6 @@ def prepare_map_data(
 # WYKRES
 
 
-# Przygotowuje historię dla wybranego zakresu.
 def prepare_history_data(
     history,
     days,
@@ -848,7 +854,6 @@ def prepare_history_data(
         }
     )
 
-    # Przy dłuższych zakresach używa średnich dobowych.
     if days >= 90:
         chart_df = (
             hourly_df.set_index("timestamp")["value"]
@@ -863,7 +868,6 @@ def prepare_history_data(
     return chart_df, completeness
 
 
-# Przygotowuje etykiety osi czasu.
 def get_chart_axis(
     history_range,
     date_from,
@@ -930,7 +934,10 @@ st.markdown(
     f"""
 <div class="top-bar">
     <div class="top-bar-logo">
-        <img src="data:image/png;base64,{logo_base64}" class="top-bar-logo-img">
+        <img
+            src="data:image/png;base64,{logo_base64}"
+            class="top-bar-logo-img"
+        >
         <span>SmogCast</span>
     </div>
     <div class="top-bar-subtitle">
@@ -977,11 +984,16 @@ station_label_by_id = {
 }
 
 
+if "last_map_selection_id" not in st.session_state:
+    st.session_state.last_map_selection_id = None
+
+
 if "pending_station_id" in st.session_state:
     pending_station_id = st.session_state.pop("pending_station_id")
 
     if pending_station_id in station_label_by_id:
         st.session_state.selected_station_id = pending_station_id
+
         st.session_state.station_selector = station_label_by_id[pending_station_id]
 
 
@@ -1033,644 +1045,657 @@ if app_status is not None and app_status.get("last_successful_refresh") is not N
     st.caption(f"Ostatnia udana aktualizacja danych: {last_refresh}")
 
 
-# DANE STACJI
+# ZAKŁADKI
 
 
-with st.spinner("Pobieranie danych dla wybranej stacji..."):
-    try:
-        latest = get_latest_measurements(station_id)
-
-    except httpx.HTTPError:
-        latest = []
-
-    try:
-        forecast = get_forecast(station_id)
-
-    except httpx.HTTPError:
-        forecast = None
-
-
-latest_by_param = {measurement["param"]: measurement for measurement in latest}
-
-
-# GŁÓWNY WIDOK
-
-
-results_col, map_col = st.columns(
-    [1.05, 1],
-    gap="large",
+current_tab, history_tab = st.tabs(
+    ["Aktualne dane", "Historia pomiarów"],
+    key="main_tabs",
+    on_change="rerun",
 )
 
 
-# POMIARY I PROGNOZA
+# AKTUALNE DANE
 
 
-with results_col:
-    st.markdown(
-        '<div class="section-title">Ostatni pomiar</div>',
-        unsafe_allow_html=True,
-    )
+if current_tab.open:
+    with current_tab:
+        with st.spinner("Pobieranie danych dla wybranej stacji..."):
+            try:
+                latest = get_latest_measurements(station_id)
 
-    measurement_col1, measurement_col2 = st.columns(2)
+            except httpx.HTTPError:
+                latest = []
 
-    pm10 = latest_by_param.get("PM10")
-    pm25 = latest_by_param.get("PM25")
+            try:
+                forecast = get_forecast(station_id)
 
-    with measurement_col1:
-        if pm10 is not None and pm10["value"] is not None:
-            show_measurement_card(
-                param="PM10",
-                value=pm10["value"],
-                timestamp=pm10["timestamp"],
+            except httpx.HTTPError:
+                forecast = None
+
+        latest_by_param = {measurement["param"]: measurement for measurement in latest}
+
+        results_col, map_col = st.columns(
+            [1.05, 1],
+            gap="large",
+        )
+
+        # POMIARY I PROGNOZA
+
+        with results_col:
+            st.markdown(
+                '<div class="section-title">Ostatni pomiar</div>',
+                unsafe_allow_html=True,
             )
 
-        else:
-            st.info("Brak aktualnego pomiaru PM10.")
+            measurement_col1, measurement_col2 = st.columns(2)
 
-    with measurement_col2:
-        if pm25 is not None and pm25["value"] is not None:
-            show_measurement_card(
-                param="PM25",
-                value=pm25["value"],
-                timestamp=pm25["timestamp"],
-            )
+            pm10 = latest_by_param.get("PM10")
+            pm25 = latest_by_param.get("PM25")
 
-        else:
-            st.info("Brak aktualnego pomiaru PM2.5.")
+            with measurement_col1:
+                if pm10 is not None and pm10["value"] is not None:
+                    show_measurement_card(
+                        param="PM10",
+                        value=pm10["value"],
+                        timestamp=pm10["timestamp"],
+                    )
 
-    stale_measurements = [
-        measurement
-        for measurement in [pm10, pm25]
-        if measurement is not None and is_stale_measurement(measurement["timestamp"])
-    ]
+                else:
+                    st.info("Brak aktualnego pomiaru PM10.")
 
-    if stale_measurements:
-        st.warning("Najnowsze pomiary dla tej stacji są starsze niż 2 dni.")
+            with measurement_col2:
+                if pm25 is not None and pm25["value"] is not None:
+                    show_measurement_card(
+                        param="PM25",
+                        value=pm25["value"],
+                        timestamp=pm25["timestamp"],
+                    )
 
-    with st.expander("Szczegóły pomiarów"):
-        details_col1, details_col2 = st.columns(2)
+                else:
+                    st.info("Brak aktualnego pomiaru PM2.5.")
 
-        with details_col1:
-            if pm10 is not None:
-                st.markdown("**PM10**")
-                st.write(f"Pomiar: {format_timestamp(pm10['timestamp'])}")
-                st.caption(f"Sensor: {pm10['sensor_id']}")
-            else:
-                st.caption("Brak danych PM10.")
+            stale_measurements = [
+                measurement
+                for measurement in [pm10, pm25]
+                if measurement is not None
+                and is_stale_measurement(measurement["timestamp"])
+            ]
 
-        with details_col2:
-            if pm25 is not None:
-                st.markdown("**PM2.5**")
-                st.write(f"Pomiar: {format_timestamp(pm25['timestamp'])}")
-                st.caption(f"Sensor: {pm25['sensor_id']}")
-            else:
-                st.caption("Brak danych PM2.5.")
+            if stale_measurements:
+                st.warning("Najnowsze pomiary dla tej stacji są starsze niż 2 dni.")
 
-    st.markdown(
-        '<div class="section-title">Prognoza na jutro</div>',
-        unsafe_allow_html=True,
-    )
+            with st.expander("Szczegóły pomiarów"):
+                details_col1, details_col2 = st.columns(2)
 
-    if forecast is not None:
-        forecast_col1, forecast_col2 = st.columns(2)
+                with details_col1:
+                    if pm10 is not None:
+                        st.markdown("**PM10**")
 
-        with forecast_col1:
-            show_forecast_card(
-                "PM10",
-                forecast["pm10"],
-                forecast["forecast_date"],
-            )
+                        st.write(f"Pomiar: {format_timestamp(pm10['timestamp'])}")
 
-        with forecast_col2:
-            show_forecast_card(
-                "PM25",
-                forecast["pm25"],
-                forecast["forecast_date"],
-            )
+                        st.caption(f"Sensor: {pm10['sensor_id']}")
 
-        forecast_warnings = []
-
-        for param_name, forecast_data in [
-            ("PM10", forecast["pm10"]),
-            ("PM2.5", forecast["pm25"]),
-        ]:
-            if forecast_data.get("warning"):
-                forecast_warnings.append(f"{param_name}: {forecast_data['warning']}")
-
-        if forecast_warnings:
-            st.warning(" ".join(forecast_warnings))
-
-        with st.expander("Kompletność danych i szczegóły prognozy"):
-            st.caption(
-                "Kompletność danych pokazuje, jaka część "
-                "oczekiwanych pomiarów z ostatnich 7 dni "
-                "była dostępna. Nie jest to poziom pewności prognozy."
-            )
-
-            pm10_forecast = forecast["pm10"]
-            pm25_forecast = forecast["pm25"]
-
-            coverage_col1, coverage_col2 = st.columns(2)
-
-            with coverage_col1:
-                st.metric(
-                    "Kompletność PM10",
-                    f"{pm10_forecast['coverage_7d']:.1f}%",
-                )
-
-            with coverage_col2:
-                st.metric(
-                    "Kompletność PM2.5",
-                    f"{pm25_forecast['coverage_7d']:.1f}%",
-                )
-
-            st.divider()
-
-            details_col1, details_col2 = st.columns(2)
-
-            with details_col1:
-                st.markdown("**PM10**")
-                st.write(
-                    f"Dane wejściowe do: {format_date(pm10_forecast['data_date'])}"
-                )
-                st.caption(f"Sensor: {pm10_forecast['sensor_id']}")
-
-            with details_col2:
-                st.markdown("**PM2.5**")
-                st.write(
-                    f"Dane wejściowe do: {format_date(pm25_forecast['data_date'])}"
-                )
-                st.caption(f"Sensor: {pm25_forecast['sensor_id']}")
-
-            for param_name, forecast_data in [
-                ("PM10", pm10_forecast),
-                ("PM2.5", pm25_forecast),
-            ]:
-                coverage_warning = forecast_data.get("coverage_warning")
-
-                if coverage_warning:
-                    if forecast_data["coverage_status"] == "critical":
-                        st.error(f"{param_name}: {coverage_warning}")
                     else:
-                        st.warning(f"{param_name}: {coverage_warning}")
+                        st.caption("Brak danych PM10.")
 
-    else:
-        st.warning(
-            "Prognoza dla tej stacji jest obecnie "
-            "niedostępna. Spróbuj ponownie później "
-            "lub wybierz inną stację."
-        )
+                with details_col2:
+                    if pm25 is not None:
+                        st.markdown("**PM2.5**")
 
+                        st.write(f"Pomiar: {format_timestamp(pm25['timestamp'])}")
 
-# MAPA
+                        st.caption(f"Sensor: {pm25['sensor_id']}")
 
+                    else:
+                        st.caption("Brak danych PM2.5.")
 
-with map_col:
-    st.markdown(
-        '<div class="section-title">Mapa stacji</div>',
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        """
-<div class="map-note">
-    Kliknij punkt na mapie, aby wybrać stację.
-</div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    map_param_display = st.radio(
-        "Kolor markerów",
-        [
-            "PM10",
-            "PM2.5",
-        ],
-        horizontal=True,
-        key="map_param",
-    )
-
-    map_param = backend_param_name(map_param_display)
-
-    with st.spinner("Ładowanie mapy..."):
-        map_data = prepare_map_data(
-            stations,
-            map_param,
-        )
-
-    if map_data:
-        station_layer = pdk.Layer(
-            "ScatterplotLayer",
-            id="stations",
-            data=map_data,
-            get_position="[lon, lat]",
-            get_fill_color="color",
-            get_radius=5,
-            radius_units="pixels",
-            radius_min_pixels=4,
-            radius_max_pixels=7,
-            pickable=True,
-            auto_highlight=True,
-            highlight_color=[255, 255, 255, 230],
-        )
-
-        selected_station_data = next(
-            (item for item in map_data if item["station_id"] == station_id),
-            None,
-        )
-
-        layers = [station_layer]
-
-        # Delikatnie wyróżnia wybraną stację.
-        if selected_station_data is not None:
-            selected_layer = pdk.Layer(
-                "ScatterplotLayer",
-                id="selected-station",
-                data=[selected_station_data],
-                get_position="[lon, lat]",
-                get_radius=5.7,
-                radius_units="pixels",
-                radius_min_pixels=5.7,
-                radius_max_pixels=5.7,
-                stroked=True,
-                filled=False,
-                get_line_color=[255, 255, 255, 220],
-                get_line_width=0.8,
-                line_width_units="pixels",
-                pickable=False,
+            st.markdown(
+                '<div class="section-title">Prognoza na jutro</div>',
+                unsafe_allow_html=True,
             )
 
-            layers.append(selected_layer)
+            if forecast is not None:
+                forecast_col1, forecast_col2 = st.columns(2)
 
-        view_state = pdk.ViewState(
-            latitude=52.0,
-            longitude=19.0,
-            zoom=5.8,
-            min_zoom=5.0,
-            max_zoom=12,
-        )
+                with forecast_col1:
+                    show_forecast_card(
+                        "PM10",
+                        forecast["pm10"],
+                        forecast["forecast_date"],
+                    )
 
-        tooltip = {
-            "html": (
-                "<b>{name}</b><br/>"
-                "{city}<br/><br/>"
-                f"{map_param_display}: "
-                "<b>{value} µg/m³</b><br/>"
-                "Jakość: <b>{status}</b><br/>"
-                "Pomiar: {age}<br/><br/>"
-                "<span style='font-size:11px;'>"
-                "Dane dotyczą tej stacji pomiarowej."
-                "</span>"
+                with forecast_col2:
+                    show_forecast_card(
+                        "PM25",
+                        forecast["pm25"],
+                        forecast["forecast_date"],
+                    )
+
+                forecast_warnings = []
+
+                for param_name, forecast_data in [
+                    ("PM10", forecast["pm10"]),
+                    ("PM2.5", forecast["pm25"]),
+                ]:
+                    if forecast_data.get("warning"):
+                        forecast_warnings.append(
+                            f"{param_name}: {forecast_data['warning']}"
+                        )
+
+                if forecast_warnings:
+                    st.warning(" ".join(forecast_warnings))
+
+                with st.expander("Kompletność danych i szczegóły prognozy"):
+                    st.caption(
+                        "Kompletność danych pokazuje, jaka część "
+                        "oczekiwanych pomiarów z ostatnich 7 dni "
+                        "była dostępna. Nie jest to poziom "
+                        "pewności prognozy."
+                    )
+
+                    pm10_forecast = forecast["pm10"]
+                    pm25_forecast = forecast["pm25"]
+
+                    coverage_col1, coverage_col2 = st.columns(2)
+
+                    with coverage_col1:
+                        st.metric(
+                            "Kompletność PM10",
+                            f"{pm10_forecast['coverage_7d']:.1f}%",
+                        )
+
+                    with coverage_col2:
+                        st.metric(
+                            "Kompletność PM2.5",
+                            f"{pm25_forecast['coverage_7d']:.1f}%",
+                        )
+
+                    st.divider()
+
+                    details_col1, details_col2 = st.columns(2)
+
+                    with details_col1:
+                        st.markdown("**PM10**")
+
+                        st.write(
+                            "Dane wejściowe do: "
+                            f"{format_date(pm10_forecast['data_date'])}"
+                        )
+
+                        st.caption(f"Sensor: {pm10_forecast['sensor_id']}")
+
+                    with details_col2:
+                        st.markdown("**PM2.5**")
+
+                        st.write(
+                            "Dane wejściowe do: "
+                            f"{format_date(pm25_forecast['data_date'])}"
+                        )
+
+                        st.caption(f"Sensor: {pm25_forecast['sensor_id']}")
+
+                    for param_name, forecast_data in [
+                        ("PM10", pm10_forecast),
+                        ("PM2.5", pm25_forecast),
+                    ]:
+                        coverage_warning = forecast_data.get("coverage_warning")
+
+                        if coverage_warning:
+                            if forecast_data["coverage_status"] == "critical":
+                                st.error(f"{param_name}: {coverage_warning}")
+
+                            else:
+                                st.warning(f"{param_name}: {coverage_warning}")
+
+            else:
+                st.warning(
+                    "Prognoza dla tej stacji jest obecnie "
+                    "niedostępna. Spróbuj ponownie później "
+                    "lub wybierz inną stację."
+                )
+
+        # MAPA
+
+        with map_col:
+            st.markdown(
+                '<div class="section-title">Mapa stacji</div>',
+                unsafe_allow_html=True,
             )
-        }
 
-        deck = pdk.Deck(
-            layers=layers,
-            initial_view_state=view_state,
-            tooltip=tooltip,
-            map_style=None,
-        )
-
-        map_event = st.pydeck_chart(
-            deck,
-            width="stretch",
-            height=540,
-            on_select="rerun",
-            selection_mode="single-object",
-            key=f"station_map_{station_id}",
-        )
-
-        selected_objects = (
-            map_event.selection.objects.get(
-                "stations",
-                [],
+            st.markdown(
+                '<div class="map-note">'
+                "Kliknij punkt na mapie, aby wybrać stację."
+                "</div>",
+                unsafe_allow_html=True,
             )
-            if map_event
-            else []
-        )
 
-        if selected_objects:
-            clicked_station_id = int(selected_objects[0]["station_id"])
+            map_param_display = st.radio(
+                "Kolor markerów",
+                [
+                    "PM10",
+                    "PM2.5",
+                ],
+                horizontal=True,
+                key="map_param",
+            )
 
-            if clicked_station_id != station_id:
-                st.session_state.pending_station_id = clicked_station_id
+            map_param = backend_param_name(map_param_display)
 
-                st.rerun()
+            with st.spinner("Ładowanie mapy..."):
+                map_data = prepare_map_data(
+                    stations,
+                    map_param,
+                )
 
-        st.markdown(
-            """
+            if map_data:
+                station_layer = pdk.Layer(
+                    "ScatterplotLayer",
+                    id="stations",
+                    data=map_data,
+                    get_position="[lon, lat]",
+                    get_fill_color="color",
+                    get_radius=5,
+                    radius_units="pixels",
+                    radius_min_pixels=4,
+                    radius_max_pixels=7,
+                    pickable=True,
+                    auto_highlight=True,
+                    highlight_color=[255, 255, 255, 230],
+                )
+
+                selected_station_data = next(
+                    (item for item in map_data if item["station_id"] == station_id),
+                    None,
+                )
+
+                layers = [station_layer]
+
+                # Delikatnie wyróżnia wybraną stację.
+                if selected_station_data is not None:
+                    selected_layer = pdk.Layer(
+                        "ScatterplotLayer",
+                        id="selected-station",
+                        data=[selected_station_data],
+                        get_position="[lon, lat]",
+                        get_radius=5.7,
+                        radius_units="pixels",
+                        radius_min_pixels=5.7,
+                        radius_max_pixels=5.7,
+                        stroked=True,
+                        filled=False,
+                        get_line_color=[255, 255, 255, 220],
+                        get_line_width=0.8,
+                        line_width_units="pixels",
+                        pickable=False,
+                    )
+
+                    layers.append(selected_layer)
+
+                view_state = pdk.ViewState(
+                    latitude=52.0,
+                    longitude=19.0,
+                    zoom=5.8,
+                    min_zoom=5.0,
+                    max_zoom=12,
+                )
+
+                tooltip = {
+                    "html": (
+                        "<b>{name}</b><br/>"
+                        "{city}<br/><br/>"
+                        f"{map_param_display}: "
+                        "<b>{value} µg/m³</b><br/>"
+                        "Jakość: <b>{status}</b><br/>"
+                        "Pomiar: {age}<br/><br/>"
+                        "<span style='font-size:11px;'>"
+                        "Dane dotyczą tej stacji pomiarowej."
+                        "</span>"
+                    )
+                }
+
+                deck = pdk.Deck(
+                    layers=layers,
+                    initial_view_state=view_state,
+                    tooltip=tooltip,
+                    map_style=None,
+                )
+
+                map_event = st.pydeck_chart(
+                    deck,
+                    width="stretch",
+                    height=540,
+                    on_select="rerun",
+                    selection_mode="single-object",
+                    key="station_map",
+                )
+
+                selected_objects = (
+                    map_event.selection.objects.get(
+                        "stations",
+                        [],
+                    )
+                    if map_event
+                    else []
+                )
+
+                if selected_objects:
+                    clicked_station_id = int(selected_objects[0]["station_id"])
+
+                    # Reaguje tylko na nowe kliknięcie na mapie.
+                    if clicked_station_id != st.session_state.last_map_selection_id:
+                        st.session_state.last_map_selection_id = clicked_station_id
+
+                        if clicked_station_id != station_id:
+                            st.session_state.pending_station_id = clicked_station_id
+
+                            st.rerun()
+
+                else:
+                    st.session_state.last_map_selection_id = None
+
+                st.markdown(
+                    """
 <div class="legend">
-    <div class="legend-item">
-        <span class="legend-dot dot-very-good"></span>
-        bardzo dobry
-    </div>
-    <div class="legend-item">
-        <span class="legend-dot dot-good"></span>
-        dobry
-    </div>
-    <div class="legend-item">
-        <span class="legend-dot dot-moderate"></span>
-        umiarkowany
-    </div>
-    <div class="legend-item">
-        <span class="legend-dot dot-sufficient"></span>
-        dostateczny
-    </div>
-    <div class="legend-item">
-        <span class="legend-dot dot-bad"></span>
-        zły
-    </div>
-    <div class="legend-item">
-        <span class="legend-dot dot-very-bad"></span>
-        bardzo zły
-    </div>
+<div class="legend-item"><span class="legend-dot dot-very-good"></span>bardzo dobry</div>
+<div class="legend-item"><span class="legend-dot dot-good"></span>dobry</div>
+<div class="legend-item"><span class="legend-dot dot-moderate"></span>umiarkowany</div>
+<div class="legend-item"><span class="legend-dot dot-sufficient"></span>dostateczny</div>
+<div class="legend-item"><span class="legend-dot dot-bad"></span>zły</div>
+<div class="legend-item"><span class="legend-dot dot-very-bad"></span>bardzo zły</div>
 </div>
-            """,
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+            else:
+                st.info("Brak danych do wyświetlenia na mapie.")
+
+
+# HISTORIA POMIARÓW
+
+
+if history_tab.open:
+    with history_tab:
+        st.markdown(
+            '<div class="section-title">Historia pomiarów</div>',
             unsafe_allow_html=True,
         )
 
-    else:
-        st.info("Brak danych do wyświetlenia na mapie.")
+        history_controls_col1, history_controls_col2 = st.columns([1, 1])
 
-
-# HISTORIA
-
-
-st.markdown(
-    '<div class="section-title">Historia pomiarów</div>',
-    unsafe_allow_html=True,
-)
-
-
-history_controls_col1, history_controls_col2 = st.columns([1, 1])
-
-
-with history_controls_col1:
-    history_param_display = st.radio(
-        "Parametr",
-        [
-            "PM10",
-            "PM2.5",
-        ],
-        horizontal=True,
-        key="history_param",
-    )
-
-
-with history_controls_col2:
-    history_range = st.radio(
-        "Zakres",
-        [
-            "7 dni",
-            "30 dni",
-            "90 dni",
-            "1 rok",
-        ],
-        horizontal=True,
-        key="history_range",
-    )
-
-
-history_param = backend_param_name(history_param_display)
-
-
-history_days = {
-    "7 dni": 7,
-    "30 dni": 30,
-    "90 dni": 90,
-    "1 rok": 365,
-}
-
-
-selected_station_data = next(
-    (station for station in stations if station["id"] == station_id),
-    None,
-)
-
-
-if selected_station_data is not None:
-    station_title = selected_station_data["name"]
-
-else:
-    station_title = selected_station
-
-
-aggregation_label = (
-    "Średnie dobowe" if history_days[history_range] >= 90 else "Pomiary godzinowe"
-)
-
-
-st.markdown(
-    f"""
-<div class="chart-header">
-    <div class="chart-title">
-        {history_param_display} — {station_title}
-    </div>
-    <div class="chart-subtitle">
-        {aggregation_label} • {history_range}
-    </div>
-</div>
-    """,
-    unsafe_allow_html=True,
-)
-
-
-try:
-    history = get_measurements(
-        station_id,
-        history_param,
-        history_days[history_range],
-    )
-
-except httpx.HTTPError:
-    history = []
-
-    st.error("Nie udało się pobrać historii pomiarów. Spróbuj ponownie później.")
-
-
-if history:
-    chart_df, completeness = prepare_history_data(
-        history,
-        history_days[history_range],
-    )
-
-    valid_chart_values = chart_df["value"].dropna()
-
-    if not valid_chart_values.empty:
-        average_value = valid_chart_values.mean()
-        maximum_value = valid_chart_values.max()
-
-        metric_col1, metric_col2, metric_col3 = st.columns(3)
-
-        with metric_col1:
-            st.markdown(
-                f"""
-<div class="summary-card">
-    <div class="summary-label">Średnia</div>
-    <div class="summary-value">
-        {average_value:.2f} µg/m³
-    </div>
-</div>
-                """,
-                unsafe_allow_html=True,
+        with history_controls_col1:
+            history_param_display = st.radio(
+                "Parametr",
+                [
+                    "PM10",
+                    "PM2.5",
+                ],
+                horizontal=True,
+                key="history_param",
             )
 
-        with metric_col2:
-            st.markdown(
-                f"""
-<div class="summary-card">
-    <div class="summary-label">Maksimum</div>
-    <div class="summary-value">
-        {maximum_value:.2f} µg/m³
-    </div>
-</div>
-                """,
-                unsafe_allow_html=True,
+        with history_controls_col2:
+            history_range = st.radio(
+                "Zakres",
+                [
+                    "7 dni",
+                    "30 dni",
+                    "90 dni",
+                    "1 rok",
+                ],
+                horizontal=True,
+                key="history_range",
             )
 
-        with metric_col3:
-            st.markdown(
-                f"""
-<div class="summary-card">
-    <div class="summary-label">
-        Kompletność danych
-    </div>
-    <div class="summary-value">
-        {completeness:.1f}%
-    </div>
-</div>
-                """,
-                unsafe_allow_html=True,
-            )
+        history_param = backend_param_name(history_param_display)
 
-        st.markdown("<br>", unsafe_allow_html=True)
+        history_days = {
+            "7 dni": 7,
+            "30 dni": 30,
+            "90 dni": 90,
+            "1 rok": 365,
+        }
 
-        chart_valid = chart_df.dropna(subset=["value"]).copy()
-
-        chart_valid["local_timestamp"] = chart_valid["timestamp"].dt.tz_convert(
-            "Europe/Warsaw"
+        selected_station_data = next(
+            (station for station in stations if station["id"] == station_id),
+            None,
         )
 
-        if history_days[history_range] >= 90:
-            chart_valid["data_tooltip"] = chart_valid["local_timestamp"].dt.strftime(
-                "%d.%m.%Y"
-            )
+        if selected_station_data is not None:
+            station_title = selected_station_data["name"]
 
         else:
-            chart_valid["data_tooltip"] = chart_valid["local_timestamp"].dt.strftime(
-                "%d.%m.%Y, %H:%M"
+            station_title = selected_station
+
+        aggregation_label = (
+            "Średnie dobowe"
+            if history_days[history_range] >= 90
+            else "Pomiary godzinowe"
+        )
+
+        st.markdown(
+            (
+                f'<div class="chart-header">'
+                f'<div class="chart-title">'
+                f"{history_param_display} — {station_title}"
+                f"</div>"
+                f'<div class="chart-subtitle">'
+                f"{aggregation_label} • {history_range}"
+                f"</div>"
+                f"</div>"
+            ),
+            unsafe_allow_html=True,
+        )
+
+        try:
+            history = get_measurements(
+                station_id,
+                history_param,
+                history_days[history_range],
             )
 
-        date_from = chart_df["timestamp"].min()
-        date_to = chart_df["timestamp"].max()
+        except httpx.HTTPError:
+            history = []
 
-        axis = get_chart_axis(
-            history_range,
-            date_from,
-            date_to,
-        )
-
-        base = alt.Chart(chart_df).encode(
-            x=alt.X(
-                "timestamp:T",
-                axis=axis,
-                scale=alt.Scale(
-                    domain=[
-                        date_from.to_pydatetime(),
-                        date_to.to_pydatetime(),
-                    ]
-                ),
-            ),
-            y=alt.Y(
-                "value:Q",
-                title="Stężenie [µg/m³]",
-                scale=alt.Scale(
-                    zero=False,
-                ),
-            ),
-        )
-
-        line = base.mark_line(
-            strokeWidth=2,
-            tooltip=None,
-        )
-
-        nearest = alt.selection_point(
-            nearest=True,
-            on="pointerover",
-            fields=["timestamp"],
-            empty=False,
-        )
-
-        interaction_base = alt.Chart(chart_valid).encode(
-            x=alt.X("timestamp:T"),
-            y=alt.Y("value:Q"),
-        )
-
-        selectors = interaction_base.mark_point(
-            opacity=0,
-            tooltip=None,
-        ).add_params(nearest)
-
-        points = interaction_base.mark_point(
-            size=90,
-            tooltip=None,
-        ).encode(
-            opacity=alt.condition(
-                nearest,
-                alt.value(1),
-                alt.value(0),
-            ),
-            tooltip=[
-                alt.Tooltip(
-                    "data_tooltip:N",
-                    title="Data",
-                ),
-                alt.Tooltip(
-                    "value:Q",
-                    title=f"{history_param_display} [µg/m³]",
-                    format=".2f",
-                ),
-            ],
-        )
-
-        rules = (
-            alt.Chart(chart_valid)
-            .mark_rule(
-                tooltip=None,
+            st.error(
+                "Nie udało się pobrać historii pomiarów. Spróbuj ponownie później."
             )
-            .encode(
-                x="timestamp:T",
-                opacity=alt.condition(
-                    nearest,
-                    alt.value(0.22),
-                    alt.value(0),
-                ),
+
+        if history:
+            chart_df, completeness = prepare_history_data(
+                history,
+                history_days[history_range],
             )
-            .transform_filter(nearest)
-        )
 
-        chart = alt.layer(
-            line,
-            selectors,
-            points,
-            rules,
-        ).properties(
-            height=390,
-        )
+            valid_chart_values = chart_df["value"].dropna()
 
-        st.altair_chart(
-            chart,
-            width="stretch",
-        )
+            if not valid_chart_values.empty:
+                average_value = valid_chart_values.mean()
+                maximum_value = valid_chart_values.max()
 
-        st.caption("Przerwy na wykresie oznaczają brak dostępnych pomiarów.")
+                (
+                    metric_col1,
+                    metric_col2,
+                    metric_col3,
+                ) = st.columns(3)
 
-    else:
-        st.info("Brak prawidłowych pomiarów w wybranym okresie.")
+                with metric_col1:
+                    st.markdown(
+                        (
+                            f'<div class="summary-card">'
+                            f'<div class="summary-label">'
+                            "Średnia"
+                            "</div>"
+                            f'<div class="summary-value">'
+                            f"{average_value:.2f} µg/m³"
+                            "</div>"
+                            "</div>"
+                        ),
+                        unsafe_allow_html=True,
+                    )
 
-else:
-    st.info("Brak historii pomiarów dla wybranego okresu.")
+                with metric_col2:
+                    st.markdown(
+                        (
+                            f'<div class="summary-card">'
+                            f'<div class="summary-label">'
+                            "Maksimum"
+                            "</div>"
+                            f'<div class="summary-value">'
+                            f"{maximum_value:.2f} µg/m³"
+                            "</div>"
+                            "</div>"
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+                with metric_col3:
+                    st.markdown(
+                        (
+                            f'<div class="summary-card">'
+                            f'<div class="summary-label">'
+                            "Kompletność danych"
+                            "</div>"
+                            f'<div class="summary-value">'
+                            f"{completeness:.1f}%"
+                            "</div>"
+                            "</div>"
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+                st.markdown(
+                    "<br>",
+                    unsafe_allow_html=True,
+                )
+
+                chart_valid = chart_df.dropna(subset=["value"]).copy()
+
+                chart_valid["local_timestamp"] = chart_valid["timestamp"].dt.tz_convert(
+                    "Europe/Warsaw"
+                )
+
+                if history_days[history_range] >= 90:
+                    chart_valid["data_tooltip"] = chart_valid[
+                        "local_timestamp"
+                    ].dt.strftime("%d.%m.%Y")
+
+                else:
+                    chart_valid["data_tooltip"] = chart_valid[
+                        "local_timestamp"
+                    ].dt.strftime("%d.%m.%Y, %H:%M")
+
+                date_from = chart_df["timestamp"].min()
+                date_to = chart_df["timestamp"].max()
+
+                axis = get_chart_axis(
+                    history_range,
+                    date_from,
+                    date_to,
+                )
+
+                base = alt.Chart(chart_df).encode(
+                    x=alt.X(
+                        "timestamp:T",
+                        axis=axis,
+                        scale=alt.Scale(
+                            domain=[
+                                date_from.to_pydatetime(),
+                                date_to.to_pydatetime(),
+                            ]
+                        ),
+                    ),
+                    y=alt.Y(
+                        "value:Q",
+                        title="Stężenie [µg/m³]",
+                        scale=alt.Scale(
+                            zero=False,
+                        ),
+                    ),
+                )
+
+                line = base.mark_line(
+                    strokeWidth=2,
+                    tooltip=None,
+                )
+
+                nearest = alt.selection_point(
+                    nearest=True,
+                    on="pointerover",
+                    fields=["timestamp"],
+                    empty=False,
+                )
+
+                interaction_base = alt.Chart(chart_valid).encode(
+                    x=alt.X("timestamp:T"),
+                    y=alt.Y("value:Q"),
+                )
+
+                selectors = interaction_base.mark_point(
+                    opacity=0,
+                    tooltip=None,
+                ).add_params(nearest)
+
+                points = interaction_base.mark_point(
+                    size=90,
+                    tooltip=None,
+                ).encode(
+                    opacity=alt.condition(
+                        nearest,
+                        alt.value(1),
+                        alt.value(0),
+                    ),
+                    tooltip=[
+                        alt.Tooltip(
+                            "data_tooltip:N",
+                            title="Data",
+                        ),
+                        alt.Tooltip(
+                            "value:Q",
+                            title=(f"{history_param_display} [µg/m³]"),
+                            format=".2f",
+                        ),
+                    ],
+                )
+
+                rules = (
+                    alt.Chart(chart_valid)
+                    .mark_rule(
+                        tooltip=None,
+                    )
+                    .encode(
+                        x="timestamp:T",
+                        opacity=alt.condition(
+                            nearest,
+                            alt.value(0.22),
+                            alt.value(0),
+                        ),
+                    )
+                    .transform_filter(nearest)
+                )
+
+                chart = alt.layer(
+                    line,
+                    selectors,
+                    points,
+                    rules,
+                ).properties(
+                    height=390,
+                )
+
+                st.altair_chart(
+                    chart,
+                    width="stretch",
+                )
+
+                st.caption("Przerwy na wykresie oznaczają brak dostępnych pomiarów.")
+
+            else:
+                st.info("Brak prawidłowych pomiarów w wybranym okresie.")
+
+        else:
+            st.info("Brak historii pomiarów dla wybranego okresu.")
 
 
 # ŹRÓDŁA

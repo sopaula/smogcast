@@ -12,6 +12,8 @@ The application combines air quality data from GIOŚ with weather data from Open
 - historical measurement charts
 - next-day PM10 and PM2.5 forecasts
 - air quality assessment based on GIOŚ thresholds
+- interactive station map with station selection
+- tab-based dashboard with lazy loading of historical data
 - weather data integration
 - data coverage quality monitoring
 - automatic daily data refresh
