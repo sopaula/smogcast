@@ -20,8 +20,8 @@ APP_ENV = os.getenv("APP_ENV", "local")
 IS_PRODUCTION = APP_ENV == "production"
 
 if IS_PRODUCTION:
-    top_bar_background = "var(--background-color)"
-    top_bar_text = "var(--text-color)"
+    top_bar_background = "var(--background-color, #0e1117)"
+    top_bar_text = "var(--text-color, #f5f5f5)"
     top_bar_border = "rgba(128, 128, 128, 0.25)"
 else:
     top_bar_background = "#0e1117"
@@ -114,35 +114,44 @@ div[data-testid="stToolbar"] svg {
     fill: var(--text-color) !important;
 }
 
+
+/* GŁÓWNY UKŁAD */
+
 .block-container {
-    padding-top: 92px;
-    padding-bottom: 3rem;
-    padding-left: 2.5rem;
-    padding-right: 2.5rem;
+    padding-top: 78px;
+    padding-bottom: 2rem;
+    padding-left: 2rem;
+    padding-right: 2rem;
     max-width: 1700px;
 }
 
+
+/* NAGŁÓWKI SEKCJI */
+
 .section-title {
-    font-size: 28px;
+    font-size: 24px;
     font-weight: 700;
-    margin-top: 20px;
-    margin-bottom: 12px;
+    margin-top: 14px;
+    margin-bottom: 8px;
 }
 
 .section-subtitle {
-    font-size: 15px;
+    font-size: 14px;
     opacity: 0.65;
-    margin-top: -4px;
-    margin-bottom: 14px;
+    margin-top: -2px;
+    margin-bottom: 10px;
 }
+
+
+/* KARTY POMIARÓW I PROGNOZY */
 
 .measurement-card,
 .forecast-card {
-    padding: 22px 24px;
-    border-radius: 14px;
+    padding: 16px 18px;
+    border-radius: 12px;
     border: 1px solid rgba(128, 128, 128, 0.22);
     box-sizing: border-box;
-    min-height: 180px;
+    min-height: 150px;
 }
 
 .card-very-good {
@@ -176,63 +185,66 @@ div[data-testid="stToolbar"] svg {
 }
 
 .card-label {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     opacity: 0.65;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
 }
 
 .card-param {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 650;
 }
 
 .card-value {
-    font-size: 36px;
+    font-size: 31px;
     font-weight: 750;
-    margin-top: 7px;
-    margin-bottom: 5px;
+    margin-top: 5px;
+    margin-bottom: 3px;
 }
 
 .card-status {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 650;
-    margin-bottom: 9px;
+    margin-bottom: 6px;
 }
 
 .card-info {
-    font-size: 14px;
-    line-height: 1.55;
+    font-size: 13px;
+    line-height: 1.4;
     opacity: 0.72;
 }
 
+
+/* MAPA */
+
 .map-note {
-    font-size: 14px;
+    font-size: 13px;
     opacity: 0.68;
-    margin-top: -3px;
-    margin-bottom: 8px;
+    margin-top: -2px;
+    margin-bottom: 5px;
 }
 
 .legend {
     display: flex;
     flex-wrap: wrap;
-    gap: 14px;
-    margin-top: 8px;
-    margin-bottom: 8px;
-    font-size: 13px;
+    gap: 10px;
+    margin-top: 5px;
+    margin-bottom: 5px;
+    font-size: 12px;
 }
 
 .legend-item {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
 }
 
 .legend-dot {
-    width: 11px;
-    height: 11px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
     display: inline-block;
 }
@@ -261,164 +273,221 @@ div[data-testid="stToolbar"] svg {
     background-color: rgb(140, 0, 0);
 }
 
+
+/* TOP BAR */
+
 .top-bar {
     position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
-    height: 68px;
+    height: 60px;
     z-index: 999;
 
     display: flex;
     align-items: center;
     justify-content: space-between;
 
-    padding: 0 140px 0 40px;
+    padding: 0 120px 0 32px;
     box-sizing: border-box;
 
-    background-color: var(--top-bar-background) !important;
+    background-color: var(--top-bar-background, #0e1117) !important;
+
+    background-image: linear-gradient(
+        var(--top-bar-background, #0e1117),
+        var(--top-bar-background, #0e1117)
+    ) !important;
+
     opacity: 1 !important;
 
     border-bottom: 1px solid var(--top-bar-border);
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+
+    box-shadow:
+        0 2px 12px rgba(0, 0, 0, 0.20);
 }
 
 .top-bar-logo {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 
-    font-size: 25px;
+    font-size: 22px;
     font-weight: 700;
+
     color: var(--top-bar-text) !important;
 }
 
 .top-bar-logo-img {
-    width: 38px;
-    height: 38px;
+    width: 32px;
+    height: 32px;
     object-fit: contain;
 }
 
 .top-bar-subtitle {
-    font-size: 14px;
+    font-size: 13px;
     color: var(--top-bar-text) !important;
     opacity: 0.68;
     font-weight: 400;
+
+    white-space: nowrap;
 }
+
+
+/* EXPANDERY */
 
 div[data-testid="stExpander"] {
     border: 1px solid rgba(128, 128, 128, 0.22);
-    border-radius: 12px;
+    border-radius: 10px;
     overflow: hidden;
 }
 
 div[data-testid="stExpander"] details summary {
-    padding-top: 6px;
-    padding-bottom: 6px;
+    padding-top: 4px;
+    padding-bottom: 4px;
 }
 
+
+/* HISTORIA */
+
 .chart-header {
-    margin-top: 8px;
-    margin-bottom: 20px;
+    margin-top: 6px;
+    margin-bottom: 14px;
 }
 
 .chart-title {
-    font-size: 27px;
+    font-size: 24px;
     font-weight: 700;
-    margin-bottom: 5px;
+    margin-bottom: 4px;
 }
 
 .chart-subtitle {
-    font-size: 15px;
+    font-size: 14px;
     opacity: 0.65;
 }
 
 .summary-card {
-    padding: 16px 18px;
-    border-radius: 12px;
+    padding: 12px 15px;
+    border-radius: 10px;
+
     background: rgba(128, 128, 128, 0.07);
-    border: 1px solid rgba(128, 128, 128, 0.16);
-    min-height: 92px;
+
+    border:
+        1px solid rgba(128, 128, 128, 0.16);
+
+    min-height: 78px;
 }
 
 .summary-label {
-    font-size: 13px;
+    font-size: 12px;
     opacity: 0.65;
-    margin-bottom: 7px;
+    margin-bottom: 5px;
 }
 
 .summary-value {
-    font-size: 27px;
+    font-size: 23px;
     font-weight: 700;
 }
 
+
+/* STOPKA */
+
 .source-footer {
-    margin-top: 40px;
-    padding-top: 18px;
-    padding-bottom: 12px;
-    border-top: 1px solid rgba(128, 128, 128, 0.2);
+    margin-top: 28px;
+    padding-top: 14px;
+    padding-bottom: 10px;
+
+    border-top:
+        1px solid rgba(128, 128, 128, 0.2);
+
     text-align: center;
-    font-size: 15px;
-    line-height: 1.6;
+
+    font-size: 13px;
+    line-height: 1.5;
+
     opacity: 0.78;
 }
 
+
+/* MOBILE */
+
 @media (max-width: 768px) {
+
     .block-container {
-        padding-top: 105px;
+        padding-top: 88px;
         padding-left: 1rem;
         padding-right: 1rem;
         padding-bottom: 2rem;
         max-width: 100%;
     }
 
+
     .top-bar {
         position: fixed;
         top: 0;
         left: 0;
+
         width: 100vw;
-        height: 68px;
+        height: 64px;
+
         z-index: 999;
 
         display: flex;
         align-items: center;
-        justify-content: space-between;
+        justify-content: flex-start;
 
-        padding: 0 140px 0 40px;
+        padding: 0 16px;
+
         box-sizing: border-box;
 
-        background-color: var(--top-bar-background) !important;
+        background-color:
+            var(--top-bar-background, #0e1117) !important;
 
-        border-bottom: 1px solid var(--top-bar-border);
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.10);
+        background-image: linear-gradient(
+            var(--top-bar-background, #0e1117),
+            var(--top-bar-background, #0e1117)
+        ) !important;
+
+        opacity: 1 !important;
+
+        border-bottom:
+            1px solid var(--top-bar-border);
+
+        box-shadow:
+            0 2px 12px rgba(0, 0, 0, 0.10);
     }
+
 
     .top-bar-logo {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
 
-        font-size: 25px;
+        font-size: 22px;
         font-weight: 700;
-        color: var(--top-bar-text) !important;
+
+        color:
+            var(--top-bar-text) !important;
     }
 
+
     .top-bar-logo-img {
-        width: 38px;
-        height: 38px;
+        width: 34px;
+        height: 34px;
         object-fit: contain;
     }
 
+
     .top-bar-subtitle {
-        font-size: 14px;
-        color: var(--top-bar-text) !important;
-        opacity: 0.68;
-        font-weight: 400;
+        display: none !important;
     }
+
 
     .section-title {
         font-size: 22px;
+        margin-top: 18px;
+        margin-bottom: 10px;
     }
+
 
     .measurement-card,
     .forecast-card {
@@ -426,30 +495,42 @@ div[data-testid="stExpander"] details summary {
         padding: 16px;
     }
 
+
+    .card-label {
+        font-size: 12px;
+    }
+
+
     .card-param {
         font-size: 16px;
     }
+
 
     .card-value {
         font-size: 28px;
     }
 
+
     .card-status {
         font-size: 14px;
     }
 
+
     .card-info {
         font-size: 13px;
     }
+
 
     .legend {
         gap: 9px;
         font-size: 11px;
     }
 
+
     .summary-value {
         font-size: 22px;
     }
+
 
     .source-footer {
         font-size: 12px;
@@ -1364,7 +1445,7 @@ if current_tab.open:
                 map_event = st.pydeck_chart(
                     deck,
                     width="stretch",
-                    height=540,
+                    height=470,
                     on_select="rerun",
                     selection_mode="single-object",
                     key="station_map",
@@ -1681,7 +1762,7 @@ if history_tab.open:
                     points,
                     rules,
                 ).properties(
-                    height=390,
+                    height=360,
                 )
 
                 st.altair_chart(
