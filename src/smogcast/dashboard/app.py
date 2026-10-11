@@ -20,9 +20,9 @@ APP_ENV = os.getenv("APP_ENV", "local")
 IS_PRODUCTION = APP_ENV == "production"
 
 if IS_PRODUCTION:
-    top_bar_background = "var(--background-color, #0e1117)"
-    top_bar_text = "var(--text-color, #f5f5f5)"
-    top_bar_border = "rgba(128, 128, 128, 0.25)"
+    top_bar_background = "var(--st-background-color, #ffffff)"
+    top_bar_text = "var(--st-text-color, #262730)"
+    top_bar_border = "var(--st-border-color, rgba(128, 128, 128, 0.25))"
 else:
     top_bar_background = "#0e1117"
     top_bar_text = "#f5f5f5"
@@ -110,8 +110,8 @@ div[data-testid="stToolbarActions"] > div:not(:last-child) {
 
 div[data-testid="stToolbar"] button,
 div[data-testid="stToolbar"] svg {
-    color: var(--text-color) !important;
-    fill: var(--text-color) !important;
+    color: var(--st-text-color) !important;
+    fill: var(--st-text-color) !important;
 }
 
 
@@ -291,11 +291,11 @@ div[data-testid="stToolbar"] svg {
     padding: 0 120px 0 32px;
     box-sizing: border-box;
 
-    background-color: var(--top-bar-background, #0e1117) !important;
+    background-color: var(--top-bar-background) !important;
 
     background-image: linear-gradient(
-        var(--top-bar-background, #0e1117),
-        var(--top-bar-background, #0e1117)
+        var(--top-bar-background),
+        var(--top-bar-background)
     ) !important;
 
     opacity: 1 !important;
@@ -440,11 +440,11 @@ div[data-testid="stExpander"] details summary {
         box-sizing: border-box;
 
         background-color:
-            var(--top-bar-background, #0e1117) !important;
+            var(--top-bar-background) !important;
 
         background-image: linear-gradient(
-            var(--top-bar-background, #0e1117),
-            var(--top-bar-background, #0e1117)
+            var(--top-bar-background),
+            var(--top-bar-background)
         ) !important;
 
         opacity: 1 !important;
