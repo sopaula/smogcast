@@ -6,6 +6,7 @@ This document summarizes the main technical decisions made during the developmen
 
 The goal is to make known limitations and trade-offs explicit rather than hiding them.
 
+
 ## 2. Key Technical Decisions
 
 ### Limited set of monitoring stations
@@ -22,6 +23,7 @@ This reduces:
 
 The architecture can be extended to support more stations in the future.
 
+
 ### SQLite and PostgreSQL support
 
 The application supports:
@@ -33,6 +35,7 @@ The application supports:
 The database is selected using the `DATABASE_URL` environment variable.
 
 This allows lightweight development with SQLite while still testing PostgreSQL-specific behavior locally before deployment.
+
 
 ### Data refresh separated from user requests
 
@@ -48,6 +51,7 @@ In production, it is executed automatically once per day using GitHub Actions.
 
 This avoids downloading external data during normal dashboard and forecast requests and reduces response time.
 
+
 ### Weather forecasts stored in advance
 
 Next-day weather forecasts are downloaded during the refresh process and stored in the database.
@@ -57,6 +61,7 @@ Forecast requests first use the stored weather data.
 If the required forecast is missing, the application can query Open-Meteo as a fallback and persist the result.
 
 This reduces latency and limits unnecessary calls to the external weather API.
+
 
 ### One Docker image for API and dashboard
 
@@ -72,6 +77,7 @@ The trade-off is that each container includes dependencies required by both appl
 
 For the current project size, deployment simplicity was preferred over image-size optimization.
 
+
 ### Managed Identity for Azure Container Registry
 
 Azure Managed Identity is used by Container Apps to access Azure Container Registry.
@@ -80,6 +86,7 @@ The registry administrator account is disabled.
 
 This avoids storing registry usernames and passwords in the deployment configuration.
 
+
 ### Secrets outside the repository
 
 Production credentials are not stored in Git.
@@ -87,6 +94,7 @@ Production credentials are not stored in Git.
 The database connection string is passed through environment variables and deployment secrets.
 
 GitHub Actions also uses repository secrets for production access.
+
 
 ### Versioned historical dataset
 
@@ -100,9 +108,9 @@ The application uses the following strategy:
 
 ```text
 local files
-    ↓
+   ↓
 GitHub Release
-    ↓
+   ↓
 full rebuild from GIOŚ and Open-Meteo
 ```
 
@@ -110,11 +118,13 @@ Dataset metadata include SHA256 checksums, which are verified before downloaded 
 
 This provides faster initialization while preserving reproducibility from the original data sources.
 
+
 ### Resumable initialization
 
 Database initialization is divided into stages.
 
 Completed stages are stored in `initialization_state`, allowing interrupted initialization to continue without repeating every previous step.
+
 
 ### Random Forest as the production model
 
@@ -130,6 +140,7 @@ Random Forest was selected because it achieved:
 
 Since high pollution levels are particularly important for the SmogCast use case, this behavior was prioritized.
 
+
 ### Coverage as a quality indicator
 
 Measurement coverage was tested as an additional model feature.
@@ -137,6 +148,7 @@ Measurement coverage was tested as an additional model feature.
 It did not improve model performance, so it was not included in the production model.
 
 Coverage is still exposed as a data-quality indicator because it provides useful information about the completeness of recent measurements.
+
 
 ## 3. Current Technical Debt
 
@@ -150,6 +162,7 @@ This means that offline evaluation does not exactly reproduce production conditi
 
 A stronger evaluation should use archived weather forecasts if suitable historical forecast data are available.
 
+
 ### Underestimation of high pollution concentrations
 
 Both evaluated machine learning models tend to underestimate high PM10 and PM2.5 concentrations.
@@ -158,6 +171,7 @@ Random Forest performs better than Linear Regression in this area, but the probl
 
 Future model development should focus specifically on improving performance during high-pollution episodes.
 
+
 ### Winter prediction quality
 
 The largest prediction errors occur during winter.
@@ -165,6 +179,7 @@ The largest prediction errors occur during winter.
 Pollution concentrations during the heating season are more variable and often significantly higher than during other seasons.
 
 The current model does not fully capture this variability.
+
 
 ### No automatic model retraining
 
@@ -180,6 +195,7 @@ A future retraining pipeline would require:
 - replacement criteria,
 - rollback support.
 
+
 ### No automatic model performance monitoring
 
 The application does not currently compare stored historical forecasts with measurements that become available later.
@@ -194,6 +210,7 @@ Future monitoring could calculate rolling metrics such as:
 - winter performance,
 - high-pollution performance.
 
+
 ### Limited number of stations
 
 The current application and model use 16 selected monitoring stations.
@@ -207,6 +224,7 @@ Increasing geographic coverage would require additional:
 - model evaluation,
 - infrastructure resources.
 
+
 ### Dependence on external APIs
 
 SmogCast depends on:
@@ -217,6 +235,7 @@ SmogCast depends on:
 Temporary outages, slow responses or changes in API response structures can affect refresh operations.
 
 Retries and error handling are implemented, but external failures can still result in incomplete updates.
+
 
 ### Basic operational monitoring
 
@@ -237,6 +256,7 @@ More advanced monitoring could include alerts for:
 - database connection failures,
 - model loading failures.
 
+
 ### Public application without authentication
 
 The dashboard is publicly accessible.
@@ -245,17 +265,31 @@ This is intentional because it exposes public environmental information and does
 
 If administrative or private features are introduced in the future, authentication and authorization should be added.
 
+
 ### No custom domain
 
 The production application currently uses the default Azure Container Apps domain.
 
 A custom domain was not required for the project scope and would introduce additional configuration and maintenance.
 
+
 ### Shared application image
 
 Using one Docker image for both FastAPI and Streamlit simplifies deployment but produces a larger image than separate optimized images would.
 
 Separate images could be introduced if startup time, image size or dependency isolation became more important.
+
+
+### Selected station highlight does not adapt to theme
+
+The currently selected station is highlighted on the map using an additional light outline.
+
+The outline color is static and does not automatically adapt to the active Streamlit theme. This results from the separation between PyDeck layer styling and Streamlit CSS theme variables.
+
+The light outline is clearly visible in dark mode, while its contrast is lower in light mode.
+
+A possible future improvement would be to introduce explicit theme-aware styling for the selected station marker or a custom mechanism for passing the active theme information to the PyDeck layer configuration.
+
 
 ### Local startup script combines several responsibilities
 
@@ -271,6 +305,7 @@ This is convenient for development, but it combines several responsibilities in 
 
 Docker Compose already separates these responsibilities more clearly into dedicated services.
 
+
 ### Historical dataset releases are manual
 
 The historical dataset is versioned and stored in GitHub Releases.
@@ -281,9 +316,11 @@ This is acceptable because dataset releases are infrequent.
 
 If they become more frequent, the process could be automated.
 
+
 ## 4. Improvements Already Completed
 
 Several areas that were previously considered technical debt have already been addressed.
+
 
 ### PostgreSQL integration testing
 
@@ -291,19 +328,23 @@ PostgreSQL integration tests are now included in the GitHub Actions CI workflow.
 
 This allows database-specific behavior to be checked automatically before changes are merged into `main`.
 
+
 ### Production weather cache
 
 Weather data required for next-day forecasts are now fetched in advance and stored in PostgreSQL.
 
 This reduces forecast latency and dependency on Open-Meteo during normal user requests.
 
+
 ### Historical dataset integrity verification
 
 Prepared dataset files are verified using SHA256 checksums before they are used.
 
+
 ### Local PostgreSQL environment
 
 Docker Compose provides PostgreSQL locally, allowing development and integration testing against the same database engine used in production.
+
 
 ### Health and readiness endpoints
 
@@ -316,6 +357,7 @@ The API exposes:
 
 These endpoints allow basic application health and dependency readiness to be checked independently.
 
+
 ### Production deployment
 
 The application is deployed in Microsoft Azure using:
@@ -327,17 +369,24 @@ The application is deployed in Microsoft Azure using:
 
 Both the API and dashboard run as separate Container Apps.
 
+
 ### Dashboard performance and interaction improvements
 
 The dashboard was reorganized into separate tabs for current data and measurement history.
 
 Historical measurements are loaded only when the user opens the history tab, reducing unnecessary API requests during the initial page load.
 
-Station selection can be performed either from the station selector or directly from the interactive map. The map preserves its current zoom and position when the selected station changes.
+Station selection can be performed either from the station selector or directly from the interactive map.
+
+The map preserves its current zoom and position when the selected station changes.
+
+The map selection state is synchronized with the station selector so that a previous map selection does not override a later selection made from the station list.
+
 
 ## 5. Intentionally Deferred Improvements
 
 The following improvements were consciously left outside the current project scope.
+
 
 ### Automatic retraining
 
@@ -345,11 +394,13 @@ Automatic retraining would add significant complexity related to validation, mod
 
 For the current project, retaining a known evaluated production model is safer and easier to reason about.
 
+
 ### Full GIOŚ station coverage
 
 Supporting every available station would increase both data volume and model complexity.
 
 The selected 16 stations are sufficient to demonstrate the full ingestion, processing, forecasting and deployment pipeline.
+
 
 ### More advanced forecasting models
 
@@ -363,6 +414,7 @@ could be explored in future work.
 
 Random Forest and Linear Regression were sufficient to demonstrate meaningful improvement over baseline approaches and support detailed error analysis.
 
+
 ### More complex cloud architecture
 
 The project intentionally does not use infrastructure such as:
@@ -373,13 +425,16 @@ The project intentionally does not use infrastructure such as:
 
 The current Azure Container Apps architecture is more appropriate for the scale and goals of the project.
 
+
 ### Authentication
 
 Authentication was not implemented because the current application exposes only public environmental information.
 
+
 ### Automatic dataset publishing
 
 An automated historical dataset build and GitHub Release pipeline was not necessary for the current project scale.
+
 
 ## 6. Recommended Next Improvements
 
@@ -393,6 +448,7 @@ The highest-priority future improvements are:
 6. expand operational monitoring and alerts,
 7. evaluate the system on a larger number of monitoring stations,
 8. automate dataset publishing if dataset versions become more frequent.
+
 
 ## 7. Summary
 
