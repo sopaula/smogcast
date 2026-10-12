@@ -548,25 +548,22 @@ div[data-testid="stExpander"] details summary {
     opacity: 0.78;
 }
 
-
 /* MOBILE */
 
 @media (max-width: 768px) {
 
-    .block-container {
-        padding-top: 78px;
-        padding-left: 1rem;
-        padding-right: 1rem;
-        padding-bottom: 2rem;
-        max-width: 100%;
+    div[data-testid="stMainBlockContainer"] {
+        padding-top: 48px !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+        padding-bottom: 2rem !important;
+        max-width: 100% !important;
     }
 
     .top-bar {
         width: 100vw;
         height: 64px;
-
         padding: 0 16px;
-
         justify-content: flex-start;
 
         background-color:
@@ -586,12 +583,12 @@ div[data-testid="stExpander"] details summary {
 
     .top-bar-logo {
         gap: 8px;
-        font-size: 22px;
+        font-size: 21px;
     }
 
     .top-bar-logo-img {
-        width: 34px;
-        height: 34px;
+        width: 32px;
+        height: 32px;
     }
 
     .top-bar-subtitle {
@@ -599,23 +596,37 @@ div[data-testid="stExpander"] details summary {
     }
 
     .section-title {
-        font-size: 22px;
-        margin-top: 14px;
-        margin-bottom: 8px;
+        font-size: 20px;
+        margin-top: 10px;
+        margin-bottom: 7px;
     }
 
     .measurement-card,
     .forecast-card {
         min-height: auto;
-        padding: 16px;
+        padding: 15px;
+    }
+
+    .card-label {
+        font-size: 11px;
+    }
+
+    .card-param {
+        font-size: 14px;
     }
 
     .card-value {
-        font-size: 28px;
+        font-size: 25px;
+        margin-top: 4px;
     }
 
     .card-status {
-        font-size: 14px;
+        font-size: 13px;
+        margin-bottom: 5px;
+    }
+
+    .card-info {
+        font-size: 12px;
     }
 
     .legend {
@@ -624,7 +635,7 @@ div[data-testid="stExpander"] details summary {
     }
 
     .summary-value {
-        font-size: 22px;
+        font-size: 20px;
     }
 
 
@@ -640,7 +651,7 @@ div[data-testid="stExpander"] details summary {
     .st-key-station_controls_mobile {
         display: block !important;
         width: 100% !important;
-        margin: 0 0 6px 0 !important;
+        margin: -6px 0 4px 0 !important;
         padding: 0 !important;
     }
 
@@ -648,31 +659,255 @@ div[data-testid="stExpander"] details summary {
     div[data-testid="stSelectbox"] {
         width: 100% !important;
         max-width: 100% !important;
+        margin-top: 0 !important;
     }
 
     .st-key-station_controls_mobile
     div[data-testid="stSelectbox"] > label {
-        margin-bottom: 6px !important;
+        margin-bottom: 5px !important;
     }
 
     .st-key-station_controls_mobile
     div[data-testid="stSelectbox"] > label p {
-        font-size: 18px !important;
+        font-size: 16px !important;
         font-weight: 650 !important;
-        line-height: 1.3 !important;
+        line-height: 1.25 !important;
     }
 
     .mobile-refresh {
-        font-size: 13px;
-        line-height: 1.4;
+        font-size: 12px;
+        line-height: 1.35;
         opacity: 0.68;
-
-        margin-top: 6px;
+        margin-top: 5px;
         margin-bottom: 4px;
     }
 
     .source-footer {
         font-size: 12px;
+    }
+}
+
+
+/* KARTY W JEDNEJ KOLUMNIE */
+
+@media (max-width: 640px) {
+
+    .measurement-card,
+    .forecast-card,
+    .summary-card {
+        margin-bottom: 14px !important;
+    }
+}
+
+
+/* TELEFONY */
+
+@media (max-width: 560px) {
+
+    div[data-testid="stMainBlockContainer"] {
+        padding-top: 46px !important;
+        padding-left: 14px !important;
+        padding-right: 14px !important;
+    }
+
+    .top-bar {
+        padding: 0 14px;
+    }
+
+    .top-bar-logo {
+        font-size: 20px;
+    }
+
+    .top-bar-logo-img {
+        width: 31px;
+        height: 31px;
+    }
+
+    .section-title {
+        font-size: 18px;
+        margin-top: 9px;
+        margin-bottom: 6px;
+    }
+
+    .section-subtitle {
+        font-size: 12px;
+    }
+
+    .measurement-card,
+    .forecast-card {
+        padding: 13px;
+    }
+
+    .card-label {
+        font-size: 10px;
+        margin-bottom: 3px;
+    }
+
+    .card-param {
+        font-size: 13px;
+    }
+
+    .card-value {
+        font-size: 22px;
+        margin-top: 3px;
+        margin-bottom: 3px;
+    }
+
+    .card-status {
+        font-size: 12px;
+        margin-bottom: 4px;
+    }
+
+    .card-info {
+        font-size: 11px;
+        line-height: 1.35;
+    }
+
+    .chart-title {
+        font-size: 18px;
+    }
+
+    .chart-subtitle {
+        font-size: 12px;
+    }
+
+    .summary-card {
+        padding: 10px 12px;
+        min-height: 72px;
+    }
+
+    .summary-value {
+        font-size: 18px;
+    }
+
+    .summary-label {
+        font-size: 10px;
+    }
+
+    .map-note {
+        font-size: 11px;
+    }
+
+    .legend {
+        gap: 7px;
+        font-size: 10px;
+    }
+
+    .cards-bottom-gap {
+        height: 12px;
+    }
+
+    .st-key-station_controls_mobile {
+        margin-top: -8px !important;
+    }
+
+    .st-key-station_controls_mobile
+    div[data-testid="stSelectbox"] > label p {
+        font-size: 15px !important;
+    }
+
+    .mobile-refresh {
+        font-size: 11px;
+    }
+
+    .source-footer {
+        font-size: 11px;
+    }
+}
+
+
+/* MAŁE TELEFONY */
+
+@media (max-width: 360px) {
+
+    div[data-testid="stMainBlockContainer"] {
+        padding-top: 44px !important;
+        padding-left: 12px !important;
+        padding-right: 12px !important;
+    }
+
+    .top-bar {
+        padding: 0 12px;
+    }
+
+    .top-bar-logo {
+        font-size: 19px;
+    }
+
+    .top-bar-logo-img {
+        width: 30px;
+        height: 30px;
+    }
+
+    .section-title {
+        font-size: 17px;
+    }
+
+    .measurement-card,
+    .forecast-card {
+        padding: 12px;
+    }
+
+    .card-label {
+        font-size: 10px;
+    }
+
+    .card-param {
+        font-size: 12px;
+    }
+
+    .card-value {
+        font-size: 21px;
+    }
+
+    .card-status {
+        font-size: 11px;
+    }
+
+    .card-info {
+        font-size: 10px;
+    }
+
+    .chart-title {
+        font-size: 17px;
+    }
+
+    .chart-subtitle {
+        font-size: 11px;
+    }
+
+    .summary-card {
+        padding: 10px 11px;
+    }
+
+    .summary-value {
+        font-size: 17px;
+    }
+
+    .summary-label {
+        font-size: 10px;
+    }
+
+    .map-note {
+        font-size: 10px;
+    }
+
+    .legend {
+        font-size: 9px;
+        gap: 6px;
+    }
+
+    .st-key-station_controls_mobile {
+        margin-top: -10px !important;
+    }
+
+    .st-key-station_controls_mobile
+    div[data-testid="stSelectbox"] > label p {
+        font-size: 14px !important;
+    }
+
+    .mobile-refresh {
+        font-size: 10px;
     }
 }
 
