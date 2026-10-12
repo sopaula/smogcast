@@ -10,7 +10,6 @@ import pandas as pd
 import pydeck as pdk
 import streamlit as st
 
-
 API_URL = os.getenv(
     "API_URL",
     "http://127.0.0.1:8000",
@@ -19,15 +18,9 @@ API_URL = os.getenv(
 APP_ENV = os.getenv("APP_ENV", "local")
 IS_PRODUCTION = APP_ENV == "production"
 
-if IS_PRODUCTION:
-    top_bar_background = "var(--st-background-color, #ffffff)"
-    top_bar_text = "var(--st-text-color, #262730)"
-    top_bar_border = "var(--st-border-color, rgba(128, 128, 128, 0.25))"
-else:
-    top_bar_background = "#0e1117"
-    top_bar_text = "#f5f5f5"
-    top_bar_border = "#262730"
-
+top_bar_background = "var(--background-color)"
+top_bar_text = "var(--text-color)"
+top_bar_border = "rgba(128, 128, 128, 0.25)"
 
 LOGO_PATH = Path(__file__).parent / "assets" / "logo.png"
 
@@ -40,7 +33,6 @@ def get_logo_base64():
 
 logo_base64 = get_logo_base64()
 
-
 QUALITY_COLORS = {
     "quality-very-good": [0, 180, 0],
     "quality-good": [100, 200, 0],
@@ -49,7 +41,6 @@ QUALITY_COLORS = {
     "quality-bad": [220, 0, 0],
     "quality-very-bad": [140, 0, 0],
 }
-
 
 AIR_QUALITY_LEVELS = {
     "PM10": [
@@ -118,7 +109,6 @@ AIR_QUALITY_LEVELS = {
     ],
 }
 
-
 st.set_page_config(
     page_title="SmogCast",
     page_icon=str(LOGO_PATH),
@@ -140,7 +130,6 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
 
 st.markdown(
     """
@@ -169,8 +158,8 @@ div[data-testid="stToolbarActions"] > div:not(:last-child) {
 
 div[data-testid="stToolbar"] button,
 div[data-testid="stToolbar"] svg {
-    color: var(--st-text-color) !important;
-    fill: var(--st-text-color) !important;
+    color: var(--top-bar-text) !important;
+    fill: var(--top-bar-text) !important;
 }
 
 
@@ -296,7 +285,6 @@ div[data-testid="stToolbar"] svg {
 .quality-very-bad {
     color: rgb(140, 0, 0);
 }
-
 
 .card-info {
     font-size: 13px;
@@ -547,6 +535,7 @@ div[data-testid="stExpander"] details summary {
 
     opacity: 0.78;
 }
+
 
 /* MOBILE */
 
@@ -1439,9 +1428,7 @@ station_options = {
     (f"{station['city']} — {station['name']}"): station["id"] for station in stations
 }
 
-
 station_labels = list(station_options.keys())
-
 
 station_label_by_id = {
     station_id: label for label, station_id in station_options.items()
