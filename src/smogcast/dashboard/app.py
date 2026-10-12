@@ -41,20 +41,30 @@ def get_logo_base64():
 logo_base64 = get_logo_base64()
 
 
+QUALITY_COLORS = {
+    "quality-very-good": [0, 180, 0],
+    "quality-good": [100, 200, 0],
+    "quality-moderate": [255, 200, 0],
+    "quality-sufficient": [255, 140, 0],
+    "quality-bad": [220, 0, 0],
+    "quality-very-bad": [140, 0, 0],
+}
+
+
 AIR_QUALITY_LEVELS = {
     "PM10": [
-        (20.0, "Bardzo dobry", "card-very-good", [0, 180, 0]),
-        (50.0, "Dobry", "card-good", [100, 200, 0]),
-        (80.0, "Umiarkowany", "card-moderate", [255, 200, 0]),
-        (110.0, "Dostateczny", "card-sufficient", [255, 140, 0]),
-        (150.0, "Zły", "card-bad", [220, 0, 0]),
+        (20.0, "Bardzo dobry", "card-very-good", "quality-very-good"),
+        (50.0, "Dobry", "card-good", "quality-good"),
+        (80.0, "Umiarkowany", "card-moderate", "quality-moderate"),
+        (110.0, "Dostateczny", "card-sufficient", "quality-sufficient"),
+        (150.0, "Zły", "card-bad", "quality-bad"),
     ],
     "PM25": [
-        (13.0, "Bardzo dobry", "card-very-good", [0, 180, 0]),
-        (35.0, "Dobry", "card-good", [100, 200, 0]),
-        (55.0, "Umiarkowany", "card-moderate", [255, 200, 0]),
-        (75.0, "Dostateczny", "card-sufficient", [255, 140, 0]),
-        (110.0, "Zły", "card-bad", [220, 0, 0]),
+        (13.0, "Bardzo dobry", "card-very-good", "quality-very-good"),
+        (35.0, "Dobry", "card-good", "quality-good"),
+        (55.0, "Umiarkowany", "card-moderate", "quality-moderate"),
+        (75.0, "Dostateczny", "card-sufficient", "quality-sufficient"),
+        (110.0, "Zły", "card-bad", "quality-bad"),
     ],
 }
 
@@ -786,18 +796,20 @@ def get_status(
     value,
     param,
 ):
-    for threshold, name, card_class, color in AIR_QUALITY_LEVELS[param]:
+    for threshold, name, card_class, quality_class in AIR_QUALITY_LEVELS[param]:
         if value <= threshold:
             return {
                 "name": name,
                 "class": card_class,
-                "color": color,
+                "quality_class": quality_class,
+                "color": QUALITY_COLORS[quality_class],
             }
 
     return {
         "name": "Bardzo zły",
         "class": "card-very-bad",
-        "color": [140, 0, 0],
+        "quality_class": "quality-very-bad",
+        "color": QUALITY_COLORS["quality-very-bad"],
     }
 
 
@@ -924,6 +936,7 @@ def prepare_map_data(
                     latest_measurement["timestamp"],
                 ),
                 "status": status["name"],
+                "quality_class": status["quality_class"],
                 "color": status["color"],
             }
         )
@@ -1101,7 +1114,7 @@ except httpx.HTTPError:
 
 
 station_options = {
-    (f"{station['city']} — {station['name']}"): station["id"] for station in stations
+    f"{station['city']} — {station['name']}": station["id"] for station in stations
 }
 
 station_labels = list(station_options.keys())
@@ -1188,7 +1201,7 @@ with st.container(key="station_controls_desktop"):
             "Stacja pomiarowa",
             station_labels,
             key="station_selector_desktop",
-            on_change=(update_station_from_desktop),
+            on_change=update_station_from_desktop,
             label_visibility="collapsed",
         )
 
@@ -1214,7 +1227,7 @@ with st.container(key="station_controls_mobile"):
         "Wybierz stację:",
         station_labels,
         key="station_selector_mobile",
-        on_change=(update_station_from_mobile),
+        on_change=update_station_from_mobile,
         label_visibility="visible",
         width="stretch",
     )
@@ -1233,7 +1246,6 @@ with st.container(key="station_controls_mobile"):
 
 
 station_id = st.session_state.selected_station_id
-
 selected_station = station_label_by_id[station_id]
 
 
@@ -1279,7 +1291,7 @@ with current_tab:
 
     with results_col:
         st.markdown(
-            ('<div class="section-title">Ostatni pomiar</div>'),
+            '<div class="section-title">Ostatni pomiar</div>',
             unsafe_allow_html=True,
         )
 
@@ -1289,7 +1301,6 @@ with current_tab:
         ) = st.columns(2)
 
         pm10 = latest_by_param.get("PM10")
-
         pm25 = latest_by_param.get("PM25")
 
         with measurement_col1:
@@ -1297,7 +1308,7 @@ with current_tab:
                 show_measurement_card(
                     param="PM10",
                     value=pm10["value"],
-                    timestamp=(pm10["timestamp"]),
+                    timestamp=pm10["timestamp"],
                 )
 
             else:
@@ -1308,14 +1319,14 @@ with current_tab:
                 show_measurement_card(
                     param="PM25",
                     value=pm25["value"],
-                    timestamp=(pm25["timestamp"]),
+                    timestamp=pm25["timestamp"],
                 )
 
             else:
                 st.info("Brak aktualnego pomiaru PM2.5.")
 
         st.markdown(
-            ('<div class="cards-bottom-gap"></div>'),
+            '<div class="cards-bottom-gap"></div>',
             unsafe_allow_html=True,
         )
 
@@ -1360,7 +1371,7 @@ with current_tab:
                     st.caption("Brak danych PM2.5.")
 
         st.markdown(
-            ('<div class="section-title">Prognoza na jutro</div>'),
+            '<div class="section-title">Prognoza na jutro</div>',
             unsafe_allow_html=True,
         )
 
@@ -1385,7 +1396,7 @@ with current_tab:
                 )
 
             st.markdown(
-                ('<div class="cards-bottom-gap"></div>'),
+                '<div class="cards-bottom-gap"></div>',
                 unsafe_allow_html=True,
             )
 
@@ -1422,7 +1433,6 @@ with current_tab:
                 )
 
                 pm10_forecast = forecast["pm10"]
-
                 pm25_forecast = forecast["pm25"]
 
                 (
@@ -1433,13 +1443,13 @@ with current_tab:
                 with coverage_col1:
                     st.metric(
                         "Kompletność PM10",
-                        (f"{pm10_forecast['coverage_7d']:.1f}%"),
+                        f"{pm10_forecast['coverage_7d']:.1f}%",
                     )
 
                 with coverage_col2:
                     st.metric(
                         "Kompletność PM2.5",
-                        (f"{pm25_forecast['coverage_7d']:.1f}%"),
+                        f"{pm25_forecast['coverage_7d']:.1f}%",
                     )
 
                 st.divider()
@@ -1501,7 +1511,7 @@ with current_tab:
 
     with map_col:
         st.markdown(
-            ('<div class="section-title">Mapa stacji</div>'),
+            '<div class="section-title">Mapa stacji</div>',
             unsafe_allow_html=True,
         )
 
@@ -1550,7 +1560,7 @@ with current_tab:
             )
 
             selected_station_data = next(
-                (item for item in map_data if (item["station_id"] == station_id)),
+                (item for item in map_data if item["station_id"] == station_id),
                 None,
             )
 
@@ -1558,11 +1568,15 @@ with current_tab:
 
             # Wyróżnia wybraną stację.
             if selected_station_data is not None:
+                selected_quality_class = selected_station_data["quality_class"]
+
+                selected_color = QUALITY_COLORS[selected_quality_class]
+
                 selected_layer = pdk.Layer(
                     "ScatterplotLayer",
                     id="selected-station",
                     data=[selected_station_data],
-                    get_position=("[lon, lat]"),
+                    get_position="[lon, lat]",
                     get_radius=5.7,
                     radius_units="pixels",
                     radius_min_pixels=5.7,
@@ -1570,13 +1584,11 @@ with current_tab:
                     stroked=True,
                     filled=False,
                     get_line_color=[
-                        255,
-                        255,
-                        255,
-                        220,
+                        *selected_color,
+                        153,
                     ],
                     get_line_width=0.8,
-                    line_width_units=("pixels"),
+                    line_width_units="pixels",
                     pickable=False,
                 )
 
@@ -1608,7 +1620,7 @@ with current_tab:
 
             deck = pdk.Deck(
                 layers=layers,
-                initial_view_state=(view_state),
+                initial_view_state=view_state,
                 tooltip=tooltip,
                 map_style=None,
             )
@@ -1618,7 +1630,7 @@ with current_tab:
                 width="stretch",
                 height=470,
                 on_select="rerun",
-                selection_mode=("single-object"),
+                selection_mode="single-object",
                 key="station_map",
             )
 
@@ -1671,7 +1683,7 @@ with current_tab:
 if history_tab.open:
     with history_tab:
         st.markdown(
-            ('<div class="section-title">Historia pomiarów</div>'),
+            '<div class="section-title">Historia pomiarów</div>',
             unsafe_allow_html=True,
         )
 
@@ -1714,7 +1726,7 @@ if history_tab.open:
         }
 
         selected_station_data = next(
-            (station for station in stations if (station["id"] == station_id)),
+            (station for station in stations if station["id"] == station_id),
             None,
         )
 
@@ -1726,7 +1738,7 @@ if history_tab.open:
 
         aggregation_label = (
             "Średnie dobowe"
-            if (history_days[history_range] >= 90)
+            if history_days[history_range] >= 90
             else "Pomiary godzinowe"
         )
 
@@ -1773,7 +1785,6 @@ if history_tab.open:
 
             if not valid_chart_values.empty:
                 average_value = valid_chart_values.mean()
-
                 maximum_value = valid_chart_values.max()
 
                 (
@@ -1871,7 +1882,7 @@ if history_tab.open:
                     ),
                     y=alt.Y(
                         "value:Q",
-                        title=("Stężenie [µg/m³]"),
+                        title="Stężenie [µg/m³]",
                         scale=alt.Scale(
                             zero=False,
                         ),
