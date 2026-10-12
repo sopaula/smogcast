@@ -68,7 +68,6 @@ st.set_page_config(
 
 # STYLE
 
-
 st.markdown(
     f"""
 <style>
@@ -118,7 +117,7 @@ div[data-testid="stToolbar"] svg {
 /* GŁÓWNY UKŁAD */
 
 .block-container {
-    padding-top: 78px;
+    padding-top: 48px;
     padding-bottom: 2rem;
     padding-left: 2rem;
     padding-right: 2rem;
@@ -215,6 +214,10 @@ div[data-testid="stToolbar"] svg {
     font-size: 13px;
     line-height: 1.4;
     opacity: 0.72;
+}
+
+.cards-bottom-gap {
+    height: 20px;
 }
 
 
@@ -328,8 +331,53 @@ div[data-testid="stToolbar"] svg {
     color: var(--top-bar-text) !important;
     opacity: 0.68;
     font-weight: 400;
-
     white-space: nowrap;
+}
+
+
+/* WYBÓR STACJI */
+
+.station-inline-label {
+    font-size: 18px;
+    font-weight: 650;
+    line-height: 38px;
+    white-space: nowrap;
+}
+
+.station-refresh {
+    font-size: 13px;
+    line-height: 38px;
+    opacity: 0.68;
+    white-space: nowrap;
+}
+
+div[data-testid="stHorizontalBlock"]:has(.station-inline-label) {
+    align-items: center;
+    gap: 12px;
+}
+
+div[data-testid="stHorizontalBlock"]:has(.station-inline-label)
+    > div[data-testid="stColumn"]:nth-child(1) {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: 120px;
+}
+
+div[data-testid="stHorizontalBlock"]:has(.station-inline-label)
+    > div[data-testid="stColumn"]:nth-child(2) {
+    flex: 0 0 300px !important;
+    width: 300px !important;
+    max-width: 300px;
+}
+
+div[data-testid="stHorizontalBlock"]:has(.station-inline-label)
+    > div[data-testid="stColumn"]:nth-child(3) {
+    flex: 1 1 auto !important;
+    width: auto !important;
+}
+
+div[data-testid="stSelectbox"] {
+    max-width: 300px;
 }
 
 
@@ -413,13 +461,12 @@ div[data-testid="stExpander"] details summary {
 @media (max-width: 768px) {
 
     .block-container {
-        padding-top: 88px;
+        padding-top: 78px;
         padding-left: 1rem;
         padding-right: 1rem;
         padding-bottom: 2rem;
         max-width: 100%;
     }
-
 
     .top-bar {
         position: fixed;
@@ -456,7 +503,6 @@ div[data-testid="stExpander"] details summary {
             0 2px 12px rgba(0, 0, 0, 0.10);
     }
 
-
     .top-bar-logo {
         display: flex;
         align-items: center;
@@ -469,25 +515,21 @@ div[data-testid="stExpander"] details summary {
             var(--top-bar-text) !important;
     }
 
-
     .top-bar-logo-img {
         width: 34px;
         height: 34px;
         object-fit: contain;
     }
 
-
     .top-bar-subtitle {
         display: none !important;
     }
 
-
     .section-title {
         font-size: 22px;
-        margin-top: 18px;
-        margin-bottom: 10px;
+        margin-top: 14px;
+        margin-bottom: 8px;
     }
-
 
     .measurement-card,
     .forecast-card {
@@ -495,42 +537,78 @@ div[data-testid="stExpander"] details summary {
         padding: 16px;
     }
 
-
     .card-label {
         font-size: 12px;
     }
-
 
     .card-param {
         font-size: 16px;
     }
 
-
     .card-value {
         font-size: 28px;
     }
-
 
     .card-status {
         font-size: 14px;
     }
 
-
     .card-info {
         font-size: 13px;
     }
-
 
     .legend {
         gap: 9px;
         font-size: 11px;
     }
 
-
     .summary-value {
         font-size: 22px;
     }
 
+    div[data-testid="stHorizontalBlock"]:has(.station-inline-label) {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 6px !important;
+        height: auto !important;
+        min-height: 0 !important;
+    }
+
+    div[data-testid="stHorizontalBlock"]:has(.station-inline-label)
+        > div[data-testid="stColumn"] {
+        flex: 0 0 auto !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        height: auto !important;
+        min-height: 0 !important;
+    }
+
+    div[data-testid="stHorizontalBlock"]:has(.station-inline-label)
+        > div[data-testid="stColumn"] > div {
+        height: auto !important;
+        min-height: 0 !important;
+    }
+
+    .station-inline-label {
+        font-size: 18px;
+        font-weight: 650;
+        line-height: 1.25;
+        margin: 0 0 2px 0;
+        padding: 0;
+    }
+
+    .station-refresh {
+        font-size: 13px;
+        line-height: 1.35;
+        white-space: normal;
+        margin: 2px 0 4px 0;
+    }
+
+    div[data-testid="stSelectbox"] {
+        width: 100%;
+        max-width: 100%;
+    }
 
     .source-footer {
         font-size: 12px;
@@ -942,7 +1020,6 @@ def prepare_history_data(
             .mean()
             .reset_index()
         )
-
     else:
         chart_df = hourly_df
 
@@ -1015,15 +1092,10 @@ st.markdown(
     f"""
 <div class="top-bar">
     <div class="top-bar-logo">
-        <img
-            src="data:image/png;base64,{logo_base64}"
-            class="top-bar-logo-img"
-        >
+        <img src="data:image/png;base64,{logo_base64}" class="top-bar-logo-img">
         <span>SmogCast</span>
     </div>
-    <div class="top-bar-subtitle">
-        Monitoring i prognozowanie jakości powietrza w Polsce
-    </div>
+    <div class="top-bar-subtitle">Monitoring i prognozowanie jakości powietrza w Polsce</div>
 </div>
     """,
     unsafe_allow_html=True,
@@ -1038,7 +1110,6 @@ try:
 
 except httpx.HTTPError:
     st.error("Nie udało się połączyć z API. Spróbuj ponownie za chwilę.")
-
     st.stop()
 
 
@@ -1099,38 +1170,58 @@ def update_station_from_selectbox():
     st.session_state.selected_station_id = station_options[selected_label]
 
 
-st.markdown(
-    '<div class="section-title">Wybierz stację</div>',
-    unsafe_allow_html=True,
+station_label_col, station_select_col, station_refresh_col = st.columns(
+    [1, 2, 5],
+    gap="small",
 )
 
 
-st.selectbox(
-    "Stacja pomiarowa",
-    station_labels,
-    key="station_selector",
-    on_change=update_station_from_selectbox,
-    label_visibility="collapsed",
-)
+with station_label_col:
+    st.markdown(
+        '<div class="station-inline-label">Wybierz stację:</div>',
+        unsafe_allow_html=True,
+    )
+
+
+with station_select_col:
+    st.selectbox(
+        "Stacja pomiarowa",
+        station_labels,
+        key="station_selector",
+        on_change=update_station_from_selectbox,
+        label_visibility="collapsed",
+    )
 
 
 station_id = st.session_state.selected_station_id
 selected_station = station_label_by_id[station_id]
 
 
-if app_status is not None and app_status.get("last_successful_refresh") is not None:
-    last_refresh = format_refresh_timestamp(
-        app_status["last_successful_refresh"],
-    )
+with station_refresh_col:
+    if app_status is not None and app_status.get("last_successful_refresh") is not None:
+        last_refresh = format_refresh_timestamp(
+            app_status["last_successful_refresh"],
+        )
 
-    st.caption(f"Ostatnia udana aktualizacja danych: {last_refresh}")
+        st.markdown(
+            (
+                '<div class="station-refresh">'
+                "Ostatnia udana aktualizacja danych: "
+                f"{last_refresh}"
+                "</div>"
+            ),
+            unsafe_allow_html=True,
+        )
 
 
 # ZAKŁADKI
 
 
 current_tab, history_tab = st.tabs(
-    ["Aktualne dane", "Historia pomiarów"],
+    [
+        "Aktualne dane",
+        "Historia pomiarów",
+    ],
     key="main_tabs",
     on_change="rerun",
 )
@@ -1196,6 +1287,11 @@ if current_tab.open:
                 else:
                     st.info("Brak aktualnego pomiaru PM2.5.")
 
+            st.markdown(
+                '<div class="cards-bottom-gap"></div>',
+                unsafe_allow_html=True,
+            )
+
             stale_measurements = [
                 measurement
                 for measurement in [pm10, pm25]
@@ -1252,6 +1348,11 @@ if current_tab.open:
                         forecast["pm25"],
                         forecast["forecast_date"],
                     )
+
+                st.markdown(
+                    '<div class="cards-bottom-gap"></div>',
+                    unsafe_allow_html=True,
+                )
 
                 forecast_warnings = []
 
@@ -1557,14 +1658,14 @@ if history_tab.open:
 
         st.markdown(
             (
-                f'<div class="chart-header">'
-                f'<div class="chart-title">'
+                '<div class="chart-header">'
+                '<div class="chart-title">'
                 f"{history_param_display} — {station_title}"
-                f"</div>"
-                f'<div class="chart-subtitle">'
+                "</div>"
+                '<div class="chart-subtitle">'
                 f"{aggregation_label} • {history_range}"
-                f"</div>"
-                f"</div>"
+                "</div>"
+                "</div>"
             ),
             unsafe_allow_html=True,
         )
@@ -1604,11 +1705,11 @@ if history_tab.open:
                 with metric_col1:
                     st.markdown(
                         (
-                            f'<div class="summary-card">'
-                            f'<div class="summary-label">'
+                            '<div class="summary-card">'
+                            '<div class="summary-label">'
                             "Średnia"
                             "</div>"
-                            f'<div class="summary-value">'
+                            '<div class="summary-value">'
                             f"{average_value:.2f} µg/m³"
                             "</div>"
                             "</div>"
@@ -1619,11 +1720,11 @@ if history_tab.open:
                 with metric_col2:
                     st.markdown(
                         (
-                            f'<div class="summary-card">'
-                            f'<div class="summary-label">'
+                            '<div class="summary-card">'
+                            '<div class="summary-label">'
                             "Maksimum"
                             "</div>"
-                            f'<div class="summary-value">'
+                            '<div class="summary-value">'
                             f"{maximum_value:.2f} µg/m³"
                             "</div>"
                             "</div>"
@@ -1634,11 +1735,11 @@ if history_tab.open:
                 with metric_col3:
                     st.markdown(
                         (
-                            f'<div class="summary-card">'
-                            f'<div class="summary-label">'
+                            '<div class="summary-card">'
+                            '<div class="summary-label">'
                             "Kompletność danych"
                             "</div>"
-                            f'<div class="summary-value">'
+                            '<div class="summary-value">'
                             f"{completeness:.1f}%"
                             "</div>"
                             "</div>"
