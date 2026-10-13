@@ -18,10 +18,6 @@ API_URL = os.getenv(
 APP_ENV = os.getenv("APP_ENV", "local")
 IS_PRODUCTION = APP_ENV == "production"
 
-top_bar_background = "var(--background-color)"
-top_bar_text = "var(--text-color)"
-top_bar_border = "rgba(128, 128, 128, 0.25)"
-
 LOGO_PATH = Path(__file__).parent / "assets" / "logo.png"
 
 
@@ -44,68 +40,18 @@ QUALITY_COLORS = {
 
 AIR_QUALITY_LEVELS = {
     "PM10": [
-        (
-            20.0,
-            "Bardzo dobry",
-            "card-very-good",
-            "quality-very-good",
-        ),
-        (
-            50.0,
-            "Dobry",
-            "card-good",
-            "quality-good",
-        ),
-        (
-            80.0,
-            "Umiarkowany",
-            "card-moderate",
-            "quality-moderate",
-        ),
-        (
-            110.0,
-            "Dostateczny",
-            "card-sufficient",
-            "quality-sufficient",
-        ),
-        (
-            150.0,
-            "Zły",
-            "card-bad",
-            "quality-bad",
-        ),
+        (20.0, "Bardzo dobry", "card-very-good", "quality-very-good"),
+        (50.0, "Dobry", "card-good", "quality-good"),
+        (80.0, "Umiarkowany", "card-moderate", "quality-moderate"),
+        (110.0, "Dostateczny", "card-sufficient", "quality-sufficient"),
+        (150.0, "Zły", "card-bad", "quality-bad"),
     ],
     "PM25": [
-        (
-            13.0,
-            "Bardzo dobry",
-            "card-very-good",
-            "quality-very-good",
-        ),
-        (
-            35.0,
-            "Dobry",
-            "card-good",
-            "quality-good",
-        ),
-        (
-            55.0,
-            "Umiarkowany",
-            "card-moderate",
-            "quality-moderate",
-        ),
-        (
-            75.0,
-            "Dostateczny",
-            "card-sufficient",
-            "quality-sufficient",
-        ),
-        (
-            110.0,
-            "Zły",
-            "card-bad",
-            "quality-bad",
-        ),
+        (13.0, "Bardzo dobry", "card-very-good", "quality-very-good"),
+        (35.0, "Dobry", "card-good", "quality-good"),
+        (55.0, "Umiarkowany", "card-moderate", "quality-moderate"),
+        (75.0, "Dostateczny", "card-sufficient", "quality-sufficient"),
+        (110.0, "Zły", "card-bad", "quality-bad"),
     ],
 }
 
@@ -117,19 +63,6 @@ st.set_page_config(
 
 
 # STYLE
-
-st.markdown(
-    f"""
-<style>
-:root {{
-    --top-bar-background: {top_bar_background};
-    --top-bar-text: {top_bar_text};
-    --top-bar-border: {top_bar_border};
-}}
-</style>
-    """,
-    unsafe_allow_html=True,
-)
 
 st.markdown(
     """
@@ -154,12 +87,6 @@ button[data-testid="stDeployButton"] {
 
 div[data-testid="stToolbarActions"] > div:not(:last-child) {
     display: none;
-}
-
-div[data-testid="stToolbar"] button,
-div[data-testid="stToolbar"] svg {
-    color: var(--top-bar-text) !important;
-    fill: var(--top-bar-text) !important;
 }
 
 
@@ -370,16 +297,13 @@ div[data-testid="stToolbar"] svg {
     padding: 0 120px 0 32px;
     box-sizing: border-box;
 
-    background-color: var(--top-bar-background) !important;
+    background-color: #ffffff !important;
+    background-image: none !important;
 
-    background-image: linear-gradient(
-        var(--top-bar-background),
-        var(--top-bar-background)
-    ) !important;
-
+    color: #262730 !important;
     opacity: 1 !important;
 
-    border-bottom: 1px solid var(--top-bar-border);
+    border-bottom: 1px solid rgba(128, 128, 128, 0.25);
 
     box-shadow:
         0 2px 12px rgba(0, 0, 0, 0.20);
@@ -393,7 +317,11 @@ div[data-testid="stToolbar"] svg {
     font-size: 22px;
     font-weight: 700;
 
-    color: var(--top-bar-text) !important;
+    color: inherit !important;
+}
+
+.top-bar-logo span {
+    color: inherit !important;
 }
 
 .top-bar-logo-img {
@@ -404,7 +332,7 @@ div[data-testid="stToolbar"] svg {
 
 .top-bar-subtitle {
     font-size: 13px;
-    color: var(--top-bar-text) !important;
+    color: inherit !important;
     opacity: 0.68;
     font-weight: 400;
     white-space: nowrap;
@@ -554,17 +482,6 @@ div[data-testid="stExpander"] details summary {
         height: 64px;
         padding: 0 16px;
         justify-content: flex-start;
-
-        background-color:
-            var(--top-bar-background) !important;
-
-        background-image: linear-gradient(
-            var(--top-bar-background),
-            var(--top-bar-background)
-        ) !important;
-
-        border-bottom:
-            1px solid var(--top-bar-border);
 
         box-shadow:
             0 2px 12px rgba(0, 0, 0, 0.10);
@@ -1094,10 +1011,7 @@ def get_forecast(station_id):
 # STATUS I KOLORY
 
 
-def get_status(
-    value,
-    param,
-):
+def get_status(value, param):
     for (
         threshold,
         name,
@@ -1391,13 +1305,85 @@ st.markdown(
     f"""
 <div class="top-bar">
     <div class="top-bar-logo">
-        <img src="data:image/png;base64,{logo_base64}" class="top-bar-logo-img">
+        <img
+            src="data:image/png;base64,{logo_base64}"
+            class="top-bar-logo-img"
+        >
         <span>SmogCast</span>
     </div>
-    <div class="top-bar-subtitle">Monitoring i prognozowanie jakości powietrza w Polsce</div>
+    <div class="top-bar-subtitle">
+        Monitoring i prognozowanie jakości powietrza w Polsce
+    </div>
 </div>
     """,
     unsafe_allow_html=True,
+)
+
+
+# Dopasowuje top bar do motywu przeglądarki.
+st.html(
+    """
+<script>
+(() => {
+    const updateTopBar = () => {
+        const app = document.querySelector(".stApp");
+        const bar = document.querySelector(".top-bar");
+
+        if (!app || !bar) {
+            return;
+        }
+
+        const appStyle = window.getComputedStyle(app);
+        const background = appStyle.backgroundColor;
+        const textColor = appStyle.color;
+
+        if (
+            background &&
+            background !== "transparent" &&
+            background !== "rgba(0, 0, 0, 0)"
+        ) {
+            bar.style.setProperty(
+                "background-color",
+                background,
+                "important"
+            );
+        }
+
+        if (textColor) {
+            bar.style.setProperty(
+                "color",
+                textColor,
+                "important"
+            );
+        }
+
+        bar.style.setProperty(
+            "background-image",
+            "none",
+            "important"
+        );
+
+        bar.style.setProperty(
+            "opacity",
+            "1",
+            "important"
+        );
+    };
+
+    if (window.smogcastTopBarInterval) {
+        clearInterval(window.smogcastTopBarInterval);
+    }
+
+    updateTopBar();
+
+    window.smogcastTopBarInterval = setInterval(
+        updateTopBar,
+        500
+    );
+})();
+</script>
+    """,
+    unsafe_allow_javascript=True,
 )
 
 
@@ -1425,7 +1411,7 @@ except httpx.HTTPError:
 
 
 station_options = {
-    (f"{station['city']} — {station['name']}"): station["id"] for station in stations
+    f"{station['city']} — {station['name']}": station["id"] for station in stations
 }
 
 station_labels = list(station_options.keys())
@@ -1505,7 +1491,7 @@ with st.container(key="station_controls_desktop"):
 
     with station_label_col:
         st.markdown(
-            ('<div class="station-inline-label">Wybierz stację:</div>'),
+            '<div class="station-inline-label">Wybierz stację:</div>',
             unsafe_allow_html=True,
         )
 
@@ -1513,8 +1499,8 @@ with st.container(key="station_controls_desktop"):
         st.selectbox(
             "Stacja pomiarowa",
             station_labels,
-            key=("station_selector_desktop"),
-            on_change=(update_station_from_desktop),
+            key="station_selector_desktop",
+            on_change=update_station_from_desktop,
             label_visibility="collapsed",
         )
 
@@ -1523,8 +1509,7 @@ with st.container(key="station_controls_desktop"):
             st.markdown(
                 (
                     '<div class="station-refresh">'
-                    "Ostatnia udana aktualizacja "
-                    "danych: "
+                    "Ostatnia udana aktualizacja danych: "
                     f"{last_refresh}"
                     "</div>"
                 ),
@@ -1533,7 +1518,6 @@ with st.container(key="station_controls_desktop"):
 
 
 # MOBILE
-# Natywny label selectboxa zapobiega nachodzeniu.
 
 
 with st.container(key="station_controls_mobile"):
@@ -1541,7 +1525,7 @@ with st.container(key="station_controls_mobile"):
         "Wybierz stację:",
         station_labels,
         key="station_selector_mobile",
-        on_change=(update_station_from_mobile),
+        on_change=update_station_from_mobile,
         label_visibility="visible",
         width="stretch",
     )
@@ -1550,8 +1534,7 @@ with st.container(key="station_controls_mobile"):
         st.markdown(
             (
                 '<div class="mobile-refresh">'
-                "Ostatnia udana aktualizacja "
-                "danych: "
+                "Ostatnia udana aktualizacja danych: "
                 f"{last_refresh}"
                 "</div>"
             ),
@@ -1578,7 +1561,6 @@ current_tab, history_tab = st.tabs(
 
 
 # AKTUALNE DANE
-# Renderowane stale, aby mapa zachowała widok.
 
 
 with current_tab:
@@ -1606,17 +1588,13 @@ with current_tab:
 
     with results_col:
         st.markdown(
-            ('<div class="section-title">Ostatni pomiar</div>'),
+            '<div class="section-title">Ostatni pomiar</div>',
             unsafe_allow_html=True,
         )
 
-        (
-            measurement_col1,
-            measurement_col2,
-        ) = st.columns(2)
+        measurement_col1, measurement_col2 = st.columns(2)
 
         pm10 = latest_by_param.get("PM10")
-
         pm25 = latest_by_param.get("PM25")
 
         with measurement_col1:
@@ -1624,7 +1602,7 @@ with current_tab:
                 show_measurement_card(
                     param="PM10",
                     value=pm10["value"],
-                    timestamp=(pm10["timestamp"]),
+                    timestamp=pm10["timestamp"],
                 )
 
             else:
@@ -1635,23 +1613,20 @@ with current_tab:
                 show_measurement_card(
                     param="PM25",
                     value=pm25["value"],
-                    timestamp=(pm25["timestamp"]),
+                    timestamp=pm25["timestamp"],
                 )
 
             else:
                 st.info("Brak aktualnego pomiaru PM2.5.")
 
         st.markdown(
-            ('<div class="cards-bottom-gap"></div>'),
+            '<div class="cards-bottom-gap"></div>',
             unsafe_allow_html=True,
         )
 
         stale_measurements = [
             measurement
-            for measurement in [
-                pm10,
-                pm25,
-            ]
+            for measurement in [pm10, pm25]
             if (
                 measurement is not None
                 and is_stale_measurement(measurement["timestamp"])
@@ -1662,10 +1637,7 @@ with current_tab:
             st.warning("Najnowsze pomiary dla tej stacji są starsze niż 2 dni.")
 
         with st.expander("Szczegóły pomiarów"):
-            (
-                details_col1,
-                details_col2,
-            ) = st.columns(2)
+            details_col1, details_col2 = st.columns(2)
 
             with details_col1:
                 if pm10 is not None:
@@ -1690,15 +1662,12 @@ with current_tab:
                     st.caption("Brak danych PM2.5.")
 
         st.markdown(
-            ('<div class="section-title">Prognoza na jutro</div>'),
+            '<div class="section-title">Prognoza na jutro</div>',
             unsafe_allow_html=True,
         )
 
         if forecast is not None:
-            (
-                forecast_col1,
-                forecast_col2,
-            ) = st.columns(2)
+            forecast_col1, forecast_col2 = st.columns(2)
 
             with forecast_col1:
                 show_forecast_card(
@@ -1715,24 +1684,15 @@ with current_tab:
                 )
 
             st.markdown(
-                ('<div class="cards-bottom-gap"></div>'),
+                '<div class="cards-bottom-gap"></div>',
                 unsafe_allow_html=True,
             )
 
             forecast_warnings = []
 
-            for (
-                param_name,
-                forecast_data,
-            ) in [
-                (
-                    "PM10",
-                    forecast["pm10"],
-                ),
-                (
-                    "PM2.5",
-                    forecast["pm25"],
-                ),
+            for param_name, forecast_data in [
+                ("PM10", forecast["pm10"]),
+                ("PM2.5", forecast["pm25"]),
             ]:
                 if forecast_data.get("warning"):
                     forecast_warnings.append(
@@ -1744,41 +1704,32 @@ with current_tab:
 
             with st.expander("Kompletność danych i szczegóły prognozy"):
                 st.caption(
-                    "Kompletność danych "
-                    "pokazuje, jaka część "
-                    "oczekiwanych pomiarów "
-                    "z ostatnich 7 dni była "
-                    "dostępna. Nie jest to "
-                    "poziom pewności prognozy."
+                    "Kompletność danych pokazuje, "
+                    "jaka część oczekiwanych pomiarów "
+                    "z ostatnich 7 dni była dostępna. "
+                    "Nie jest to poziom pewności prognozy."
                 )
 
                 pm10_forecast = forecast["pm10"]
-
                 pm25_forecast = forecast["pm25"]
 
-                (
-                    coverage_col1,
-                    coverage_col2,
-                ) = st.columns(2)
+                coverage_col1, coverage_col2 = st.columns(2)
 
                 with coverage_col1:
                     st.metric(
                         "Kompletność PM10",
-                        (f"{pm10_forecast['coverage_7d']:.1f}%"),
+                        f"{pm10_forecast['coverage_7d']:.1f}%",
                     )
 
                 with coverage_col2:
                     st.metric(
                         "Kompletność PM2.5",
-                        (f"{pm25_forecast['coverage_7d']:.1f}%"),
+                        f"{pm25_forecast['coverage_7d']:.1f}%",
                     )
 
                 st.divider()
 
-                (
-                    details_col1,
-                    details_col2,
-                ) = st.columns(2)
+                details_col1, details_col2 = st.columns(2)
 
                 with details_col1:
                     st.markdown("**PM10**")
@@ -1798,18 +1749,9 @@ with current_tab:
 
                     st.caption(f"Sensor: {pm25_forecast['sensor_id']}")
 
-                for (
-                    param_name,
-                    forecast_data,
-                ) in [
-                    (
-                        "PM10",
-                        pm10_forecast,
-                    ),
-                    (
-                        "PM2.5",
-                        pm25_forecast,
-                    ),
+                for param_name, forecast_data in [
+                    ("PM10", pm10_forecast),
+                    ("PM2.5", pm25_forecast),
                 ]:
                     coverage_warning = forecast_data.get("coverage_warning")
 
@@ -1822,9 +1764,8 @@ with current_tab:
 
         else:
             st.warning(
-                "Prognoza dla tej stacji "
-                "jest obecnie niedostępna. "
-                "Spróbuj ponownie później "
+                "Prognoza dla tej stacji jest obecnie "
+                "niedostępna. Spróbuj ponownie później "
                 "lub wybierz inną stację."
             )
 
@@ -1832,12 +1773,12 @@ with current_tab:
 
     with map_col:
         st.markdown(
-            ('<div class="section-title">Mapa stacji</div>'),
+            '<div class="section-title">Mapa stacji</div>',
             unsafe_allow_html=True,
         )
 
         st.markdown(
-            ('<div class="map-note">Kliknij punkt na mapie, aby wybrać stację.</div>'),
+            '<div class="map-note">Kliknij punkt na mapie, aby wybrać stację.</div>',
             unsafe_allow_html=True,
         )
 
@@ -1881,7 +1822,7 @@ with current_tab:
             )
 
             selected_station_data = next(
-                (item for item in map_data if (item["station_id"] == station_id)),
+                (item for item in map_data if item["station_id"] == station_id),
                 None,
             )
 
@@ -1941,7 +1882,7 @@ with current_tab:
 
             deck = pdk.Deck(
                 layers=layers,
-                initial_view_state=(view_state),
+                initial_view_state=view_state,
                 tooltip=tooltip,
                 map_style=None,
             )
@@ -1951,7 +1892,7 @@ with current_tab:
                 width="stretch",
                 height=470,
                 on_select="rerun",
-                selection_mode=("single-object"),
+                selection_mode="single-object",
                 key="station_map",
             )
 
@@ -1982,12 +1923,24 @@ with current_tab:
             st.markdown(
                 """
 <div class="legend">
-<div class="legend-item"><span class="legend-dot dot-very-good"></span>bardzo dobry</div>
-<div class="legend-item"><span class="legend-dot dot-good"></span>dobry</div>
-<div class="legend-item"><span class="legend-dot dot-moderate"></span>umiarkowany</div>
-<div class="legend-item"><span class="legend-dot dot-sufficient"></span>dostateczny</div>
-<div class="legend-item"><span class="legend-dot dot-bad"></span>zły</div>
-<div class="legend-item"><span class="legend-dot dot-very-bad"></span>bardzo zły</div>
+<div class="legend-item">
+    <span class="legend-dot dot-very-good"></span>bardzo dobry
+</div>
+<div class="legend-item">
+    <span class="legend-dot dot-good"></span>dobry
+</div>
+<div class="legend-item">
+    <span class="legend-dot dot-moderate"></span>umiarkowany
+</div>
+<div class="legend-item">
+    <span class="legend-dot dot-sufficient"></span>dostateczny
+</div>
+<div class="legend-item">
+    <span class="legend-dot dot-bad"></span>zły
+</div>
+<div class="legend-item">
+    <span class="legend-dot dot-very-bad"></span>bardzo zły
+</div>
 </div>
                 """,
                 unsafe_allow_html=True,
@@ -1998,13 +1951,12 @@ with current_tab:
 
 
 # HISTORIA POMIARÓW
-# Dane pobierają się dopiero po otwarciu zakładki.
 
 
 if history_tab.open:
     with history_tab:
         st.markdown(
-            ('<div class="section-title">Historia pomiarów</div>'),
+            '<div class="section-title">Historia pomiarów</div>',
             unsafe_allow_html=True,
         )
 
@@ -2047,7 +1999,7 @@ if history_tab.open:
         }
 
         selected_station_data = next(
-            (station for station in stations if (station["id"] == station_id)),
+            (station for station in stations if station["id"] == station_id),
             None,
         )
 
@@ -2059,7 +2011,7 @@ if history_tab.open:
 
         aggregation_label = (
             "Średnie dobowe"
-            if (history_days[history_range] >= 90)
+            if history_days[history_range] >= 90
             else "Pomiary godzinowe"
         )
 
@@ -2094,10 +2046,7 @@ if history_tab.open:
             )
 
         if history:
-            (
-                chart_df,
-                completeness,
-            ) = prepare_history_data(
+            chart_df, completeness = prepare_history_data(
                 history,
                 history_days[history_range],
             )
@@ -2106,7 +2055,6 @@ if history_tab.open:
 
             if not valid_chart_values.empty:
                 average_value = valid_chart_values.mean()
-
                 maximum_value = valid_chart_values.max()
 
                 (
@@ -2182,7 +2130,6 @@ if history_tab.open:
                     ].dt.strftime("%d.%m.%Y, %H:%M")
 
                 date_from = chart_df["timestamp"].min()
-
                 date_to = chart_df["timestamp"].max()
 
                 axis = get_chart_axis(
@@ -2204,7 +2151,7 @@ if history_tab.open:
                     ),
                     y=alt.Y(
                         "value:Q",
-                        title=("Stężenie [µg/m³]"),
+                        title="Stężenie [µg/m³]",
                         scale=alt.Scale(
                             zero=False,
                         ),
@@ -2237,12 +2184,10 @@ if history_tab.open:
                     size=90,
                     tooltip=None,
                 ).encode(
-                    opacity=(
-                        alt.condition(
-                            nearest,
-                            alt.value(1),
-                            alt.value(0),
-                        )
+                    opacity=alt.condition(
+                        nearest,
+                        alt.value(1),
+                        alt.value(0),
                     ),
                     tooltip=[
                         alt.Tooltip(
@@ -2264,12 +2209,10 @@ if history_tab.open:
                     )
                     .encode(
                         x="timestamp:T",
-                        opacity=(
-                            alt.condition(
-                                nearest,
-                                alt.value(0.22),
-                                alt.value(0),
-                            )
+                        opacity=alt.condition(
+                            nearest,
+                            alt.value(0.22),
+                            alt.value(0),
                         ),
                     )
                     .transform_filter(nearest)
