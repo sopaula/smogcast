@@ -1,9 +1,9 @@
+
 name: Daily ingest
 
 on:
   schedule:
-    - cron: "17 5 * * *"
-      timezone: "Europe/Warsaw"
+    - cron: "17 4 * * *"
 
   workflow_dispatch:
 
@@ -18,6 +18,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Show start time
+        run: |
+          echo "Event: ${{ github.event_name }}"
+          echo "UTC: $(date -u)"
+          echo "Poland: $(TZ=Europe/Warsaw date)"
+
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -30,4 +36,12 @@ jobs:
         run: uv sync --locked
 
       - name: Refresh data
-        run: PYTHONPATH=src uv run python scripts/refresh_all.py
+        run: |
+          echo "Refresh started: $(TZ=Europe/Warsaw date)"
+          PYTHONPATH=src uv run python scripts/refresh_all.py
+          echo "Refresh finished: $(TZ=Europe/Warsaw date)"
+
+      - name: Show end time
+        if: always()
+        run: |
+          echo "Workflow ended: $(TZ=Europe/Warsaw date)"
